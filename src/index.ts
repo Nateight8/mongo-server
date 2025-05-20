@@ -67,7 +67,7 @@ const schema = makeExecutableSchema({
 });
 
 // Set up WebSocket server for subscriptions
-const wsServer = new WebSocketServer({
+const wsServer: WebSocketServer = new WebSocketServer({
   server: httpServer,
   path: "/graphql",
 });
@@ -82,7 +82,7 @@ const serverCleanup = useServer(
       return { session, db, pubsub };
     },
   },
-  wsServer
+  wsServer as any // Type assertion to fix type error
 );
 
 // Create Apollo Server
