@@ -31,8 +31,23 @@ const userResolvers = {
           .where(eq(users.id, session.id));
 
         const user = userRecord[0];
+        
+        if (!user) {
+          throw new GraphQLError("User not found", {
+            extensions: { code: "NOT_FOUND" },
+          });
+        }
 
-        return { status: 200, user };
+        // Ensure onboardingCompleted is a boolean
+        const onboardingCompleted = Boolean(user.onboardingCompleted);
+        
+        return { 
+          status: 200, 
+          user: {
+            ...user,
+            onboardingCompleted
+          } 
+        };
       } catch (error) {
         console.error("Error fetching user:", error);
         throw new GraphQLError("Failed to fetch user", {

@@ -15,16 +15,22 @@ export function registerAuthRoutes(app: Express) {
       console.log("[OAuth Callback] Route hit");
       next();
     },
-    passport.authenticate("google", { failureRedirect: "/" }),
+    passport.authenticate("google", { failureRedirect: "/login" }),
     (req: Request, res: Response) => {
       console.log("[OAuth Callback] req.user:", req.user);
       console.log("[OAuth Callback] req.session:", req.session);
-      // Always redirect to frontend root after authentication
-      const frontendUrl =
-        process.env.NODE_ENV === "production"
-          ? "https://urbancruise.vercel.app/"
-          : "http://localhost:3000/";
-      res.redirect(frontendUrl);
+      
+      // Determine the base frontend URL
+      const baseFrontendUrl = process.env.NODE_ENV === "production"
+        ? "https://urbancruise.vercel.app"
+        : "http://localhost:3000";
+      
+      // Check if user has completed onboarding
+      const user = req.user as any;
+      const redirectPath = user?.onboardingCompleted ? "/dashboard" : "/sign-up";
+      
+      console.log(`[OAuth Callback] Redirecting to: ${baseFrontendUrl}${redirectPath}`);
+      res.redirect(`${baseFrontendUrl}${redirectPath}`);
     }
   );
 

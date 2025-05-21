@@ -11,6 +11,9 @@ import {
 } from "drizzle-orm/pg-core";
 // import type { AdapterAccount } from "@auth/core/adapters";
 
+export const onboardingSteps = ["account_setup", "profile_setup", "preferences", "completed"] as const;
+export type OnboardingStep = typeof onboardingSteps[number];
+
 export const users = pgTable("user", {
   id: text("id").primaryKey(),
   name: text("name"),
@@ -42,7 +45,7 @@ export const users = pgTable("user", {
   biggestChallenge: text("biggest_challenge").array(), // still an array for multiple challenges
 
   onboardingStep: text("onboarding_step", {
-    enum: ["account_setup", "profile_setup", "preferences", "completed"],
+    enum: onboardingSteps,
   })
     .default("account_setup")
     .notNull(),
