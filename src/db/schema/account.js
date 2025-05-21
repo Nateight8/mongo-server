@@ -9,8 +9,8 @@ import {
   integer,
 } from "drizzle-orm/pg-core";
 // @ts-ignore
-// const { users } = require("./auth.ts");
-import { users } from "./auth.ts";
+// const { users } = require("./auth.js");
+import { users } from "./auth.js";
 
 // Enums if you haven’t already
 export const goalEnum = pgEnum("goal", [

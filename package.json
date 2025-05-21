@@ -7,9 +7,9 @@
     "dev": "nodemon",
     "build": "npm install && tsc",
     "start": "node dist/index.js",
-    "db:generate": "NODE_OPTIONS=\"--experimental-specifier-resolution=node\" npx drizzle-kit generate",
-    "db:push": "NODE_OPTIONS=\"--experimental-specifier-resolution=node\" npx drizzle-kit push",
-    "db:studio": "NODE_OPTIONS=\"--experimental-specifier-resolution=node\" npx drizzle-kit studio"
+    "db:generate": "drizzle-kit generate --dialect=postgresql --schema=./src/db/schema --out=./drizzle",
+    "db:push": "drizzle-kit push --dialect=postgresql --schema=./src/db/schema",
+    "db:studio": "drizzle-kit studio --dialect=postgresql --schema=./src/db/schema"
   },
   "keywords": [],
   "author": "",
@@ -32,7 +32,7 @@
     "axios": "^1.7.9",
     "cors": "^2.8.5",
     "date-fns": "^4.1.0",
-    "dotenv": "^16.4.7",
+    "dotenv": "^16.5.0",
     "drizzle-orm": "^0.37.0",
     "express": "^4.21.2",
     "express-session": "^1.18.1",
@@ -45,13 +45,14 @@
     "openai": "^4.77.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
+    "pg": "^8.16.0",
     "postgres": "^3.4.5",
     "tsc-alias": "^1.8.15",
     "typescript": "^5.7.2",
     "ws": "^8.18.1"
   },
   "devDependencies": {
-    "drizzle-kit": "^0.29.1",
+    "drizzle-kit": "^0.31.1",
     "nodemon": "^3.1.9",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",

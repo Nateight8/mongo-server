@@ -22,7 +22,7 @@ export const users = pgTable("user", {
   location: text("location"),
   address: text("address"),
   phoneVerified: boolean("phoneVerified"),
-  onboardingCompleted: boolean("onboardingCompleted"),
+  onboardingCompleted: boolean("onboarding_completed"),
   banner: text("banner"),
   username: text("username"),
   avatar: text("avatar"),
@@ -33,7 +33,7 @@ export const users = pgTable("user", {
 
   goals: text("goals", {
     enum: ["prop", "improve", "discipline", "analytics"],
-  }).notNull(),
+  }), // Made optional by removing .notNull()
 
   experienceLevel: text("experience_level", {
     enum: ["beginner", "intermediate", "advanced"],
@@ -42,7 +42,7 @@ export const users = pgTable("user", {
   biggestChallenge: text("biggest_challenge").array(), // still an array for multiple challenges
 
   onboardingStep: text("onboarding_step", {
-    enum: ["account_setup", "completed"],
+    enum: ["account_setup", "profile_setup", "preferences", "completed"],
   })
     .default("account_setup")
     .notNull(),
@@ -129,4 +129,4 @@ export const authenticators = pgTable(
   })
 );
 
-export type User = typeof users.$inferSelect;
+// export type User = typeof users.$inferSelect;

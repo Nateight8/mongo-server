@@ -6,9 +6,13 @@ import {
 } from "passport-google-oauth20";
 import "dotenv/config";
 import { db } from "../db/index.js";
-import { users } from "../db/schema/_index.js";
-import { eq } from "drizzle-orm";
+import { users } from "../db/schema/index.js";
+import { eq, and } from "drizzle-orm";
 import { Snowflake } from "@theinternetfolks/snowflake";
+import type { UserTable } from "../db/schema/types.d";
+
+// Define a type for the where clause
+type WhereClause = (users: UserTable) => ReturnType<typeof eq>;
 
 export function setupPassport() {
   // Debug log to check environment variables
@@ -42,7 +46,7 @@ export function setupPassport() {
 
           // Check if a user with this email already exists
           const existingUserByEmail = await db.query.users.findFirst({
-            where: (u) => eq(u.email, email),
+            where: (users: UserTable) => eq(users.email, email),
           });
           if (existingUserByEmail) {
             // Map all null fields to undefined for compatibility
@@ -62,6 +66,8 @@ export function setupPassport() {
             email,
             image: profile.photos?.[0]?.value || undefined,
             participantId: Snowflake.generate(),
+            onboardingStep: "account_setup",
+            onboardingCompleted: false,
             // Optional fields are left undefined
           };
 
@@ -69,7 +75,7 @@ export function setupPassport() {
 
           // Fetch and return the created user
           const createdUser = await db.query.users.findFirst({
-            where: (u) => eq(u.id, googleId),
+            where: (users: UserTable) => eq(users.id, googleId),
           });
 
           // Map all null fields to undefined for compatibility
