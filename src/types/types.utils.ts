@@ -1,6 +1,6 @@
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import * as schema from "../db/schema/index.js";
+import * as schema from "../db/schema/_index.js";
 import { PubSub } from "graphql-subscriptions";
 
 export default interface GraphqlContext {

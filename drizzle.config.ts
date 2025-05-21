@@ -1,17 +1,15 @@
-import { config } from "dotenv";
-import { defineConfig } from "drizzle-kit";
-import { resolve } from "path";
+require('dotenv').config({ path: '.env' });
+const { defineConfig } = require('drizzle-kit');
 
-config({ path: ".env" });
-
-// Parse the DATABASE_URL
-const url = new URL(process.env.DATABASE_URL!);
-
-export default defineConfig({
-  schema: resolve(__dirname, "./src/db/schema/*.ts"),
+module.exports = defineConfig({
+  schema: [
+    "./src/db/schema/account.ts",
+    "./src/db/schema/auth.ts"
+  ],
   out: "./drizzle",
   dialect: "postgresql",
   dbCredentials: {
-    url: process.env.DATABASE_URL!,
+    url: process.env.DATABASE_URL,
   },
+  verbose: true,
 });

@@ -10,12 +10,6 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 // import type { AdapterAccount } from "@auth/core/adapters";
-import postgres from "postgres";
-import { drizzle } from "drizzle-orm/postgres-js";
-
-const connectionString = process.env.DATABASE_URL!;
-const pool = postgres(connectionString, { max: 1 });
-export const db = drizzle(pool);
 
 export const users = pgTable("user", {
   id: text("id").primaryKey(),
@@ -36,6 +30,22 @@ export const users = pgTable("user", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   participantId: varchar("participant_id", { length: 64 }),
   providerAccountId: text("provider_account_id").unique(),
+
+  goals: text("goals", {
+    enum: ["prop", "improve", "discipline", "analytics"],
+  }).notNull(),
+
+  experienceLevel: text("experience_level", {
+    enum: ["beginner", "intermediate", "advanced"],
+  }),
+
+  biggestChallenge: text("biggest_challenge").array(), // still an array for multiple challenges
+
+  onboardingStep: text("onboarding_step", {
+    enum: ["account_setup", "completed"],
+  })
+    .default("account_setup")
+    .notNull(),
 });
 
 export const accounts = pgTable(

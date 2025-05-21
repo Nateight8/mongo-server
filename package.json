@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "nodemon",
     "build": "npm install && tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "db:generate": "NODE_OPTIONS=\"--experimental-specifier-resolution=node\" npx drizzle-kit generate",
+    "db:push": "NODE_OPTIONS=\"--experimental-specifier-resolution=node\" npx drizzle-kit push",
+    "db:studio": "NODE_OPTIONS=\"--experimental-specifier-resolution=node\" npx drizzle-kit studio"
   },
   "keywords": [],
   "author": "",
