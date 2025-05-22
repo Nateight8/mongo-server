@@ -1,7 +1,7 @@
 import { GraphQLError } from "graphql";
 import { GraphqlContext } from "@/types/types.utils.js";
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { generateSnowflakeId } from "@/utils/snowflake.js";
 import { AccountSetupInput } from "../typeDefs/account.js";
@@ -9,9 +9,54 @@ import { tradingAccounts } from "@/db/schema/account.js";
 import { users } from "@/db/schema/auth.js";
 
 export const accountResolvers = {
+  Query: {
+    tradingAccounts: async (_: unknown, __: unknown, ctx: GraphqlContext) => {
+      const { db, user } = ctx;
+
+      if (!user?.id) {
+        throw new GraphQLError("Not authenticated", {
+          extensions: { code: "UNAUTHORIZED" },
+        });
+      }
+
+      const userId = user.id;
+
+      return db
+        .select()
+        .from(tradingAccounts)
+        .where(eq(tradingAccounts.userId, userId));
+    },
+
+    tradingAccount: async (
+      _: unknown,
+      args: { id: string },
+      ctx: GraphqlContext
+    ) => {
+      const { db, user } = ctx;
+
+      if (!user?.id) {
+        throw new GraphQLError("Not authenticated", {
+          extensions: { code: "UNAUTHORIZED" },
+        });
+      }
+
+      const userId = user.id;
+
+      const [account] = await db
+        .select()
+        .from(tradingAccounts)
+        .where(and(
+          eq(tradingAccounts.id, args.id),
+          eq(tradingAccounts.userId, userId)
+        ));
+
+      return account ?? null;
+    },
+  },
+
   Mutation: {
     setupAccount: async (
-      _: any,
+      _: unknown,
       args: { input: AccountSetupInput },
       context: GraphqlContext
     ) => {

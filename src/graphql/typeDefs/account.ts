@@ -60,6 +60,12 @@ export const userAccounts = gql`
   type Mutation {
     setupAccount(input: AccountSetupInput!): TradingAccount!
   }
+
+  type Query {
+    tradingAccounts: [TradingAccount!]!
+
+    tradingAccount(id: ID!): TradingAccount
+  }
 `;
 
 enum Goal {
@@ -98,3 +104,24 @@ export interface AccountSetupInput {
   experienceLevel?: ExperienceLevel | null;
   biggestChallenge?: BiggestChallenge[] | null;
 }
+
+export type TradingAccount = {
+  id: string;
+  accountId: string;
+  userId: string;
+  goal: "prop" | "improve" | "discipline" | "analytics";
+  isProp: boolean;
+  funded: boolean;
+  fundedAt?: string | null;
+  propFirm?: string | null;
+  broker?: string | null;
+  accountSize: number;
+  accountCurrency: "USD" | "EUR" | "GBP";
+  accountName: string;
+  experienceLevel?: "beginner" | "intermediate" | "advanced" | null;
+  biggestChallenge?:
+    | ("riskManagement" | "consistency" | "psychology" | "patience")[]
+    | null;
+  createdAt: string;
+  updatedAt: string;
+};

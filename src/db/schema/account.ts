@@ -9,6 +9,7 @@ import {
   integer,
 } from "drizzle-orm/pg-core";
 import { users } from "./auth.js";
+import { safetyNets } from "./safety-net.js";
 
 // Enums
 export const goalEnum = pgEnum("goal", [
@@ -52,6 +53,10 @@ export const tradingAccounts = pgTable("trading_accounts", {
   accountName: text("account_name").notNull(),
   experienceLevel: experienceLevelEnum("experience_level"),
   biggestChallenge: biggestChallengeEnum("biggest_challenge").array(),
+  safetyNetId: uuid("safety_net_id").references(() => safetyNets.id, {
+    onDelete: "set null",
+  }),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

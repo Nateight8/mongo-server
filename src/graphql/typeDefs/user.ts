@@ -3,9 +3,9 @@ import { gql } from "graphql-tag";
 export const userTypeDefs = gql`
   enum OnboardingStep {
     account_setup
-    profile_setup
-    preferences
-    completed
+    trading_style
+    safety_net
+    complete
   }
 
   type User {

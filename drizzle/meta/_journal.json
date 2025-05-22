@@ -5,43 +5,8 @@
     {
       "idx": 0,
       "version": "7",
-      "when": 1747803010678,
-      "tag": "0000_dizzy_eternity",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "7",
-      "when": 1747804905578,
-      "tag": "0001_chilly_black_crow",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "7",
-      "when": 1747806728846,
-      "tag": "0002_typical_chat",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
-      "version": "7",
-      "when": 1747813824215,
-      "tag": "0003_pretty_jackal",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "7",
-      "when": 1747821848508,
-      "tag": "0004_magenta_penance",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "7",
-      "when": 1747900189450,
-      "tag": "0005_productive_saracen",
+      "when": 1747928618485,
+      "tag": "0000_nosy_switch",
       "breakpoints": true
     }
   ]
