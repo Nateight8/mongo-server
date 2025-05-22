@@ -21,7 +21,15 @@
     "esm": true,
     "require": ["tsconfig-paths/register"]
   },
-  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/db/schema/types.d.ts"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "src/db/schema/types.d.ts",
+    "src/db/index.js",
+    "src/db/schema/index.js",
+    "src/db/schema/auth.js",
+    "src/db/schema/account.js"
+  ],
   "allowJs": true,
   "checkJs": true
 }

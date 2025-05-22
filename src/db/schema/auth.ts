@@ -11,8 +11,13 @@ import {
 } from "drizzle-orm/pg-core";
 // import type { AdapterAccount } from "@auth/core/adapters";
 
-export const onboardingSteps = ["account_setup", "profile_setup", "preferences", "completed"] as const;
-export type OnboardingStep = typeof onboardingSteps[number];
+export const onboardingSteps = [
+  "account_setup",
+  "trading_style",
+  "safety_net",
+  "complete",
+] as const;
+export type OnboardingStep = (typeof onboardingSteps)[number];
 
 export const users = pgTable("user", {
   id: text("id").primaryKey(),

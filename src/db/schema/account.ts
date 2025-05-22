@@ -8,11 +8,9 @@ import {
   pgEnum,
   integer,
 } from "drizzle-orm/pg-core";
-// @ts-ignore
-// const { users } = require("./auth.js");
 import { users } from "./auth.js";
 
-// Enums if you haven’t already
+// Enums
 export const goalEnum = pgEnum("goal", [
   "prop",
   "improve",
@@ -36,21 +34,24 @@ export const biggestChallengeEnum = pgEnum("biggest_challenge", [
   "patience",
 ]);
 
+// Trading Accounts table
 export const tradingAccounts = pgTable("trading_accounts", {
-  id: uuid("id").defaultRandom().primaryKey(), // UUID
-  accountId: bigint("account_id", { mode: "bigint" }).notNull().unique(), // Snowflake ID
+  id: uuid("id").defaultRandom().primaryKey(),
+  accountId: text("account_id").notNull().unique(), // snowflake ID
   userId: text("user_id")
     .notNull()
     .references(() => users.id, { onDelete: "cascade" }),
   goal: goalEnum("goal").notNull(),
-  isProp: boolean("is_prop").notNull().default(false), // ✅ Added
+  isProp: boolean("is_prop").notNull().default(false),
+  funded: boolean("funded").notNull().default(false), // ✅ NEW FIELD
+  fundedAt: timestamp("funded_at", { mode: "date" }), // ✅ Optional
   propFirm: text("prop_firm"),
   broker: text("broker"),
   accountSize: integer("account_size").notNull(),
   accountCurrency: accountCurrencyEnum("account_currency").notNull(),
   accountName: text("account_name").notNull(),
   experienceLevel: experienceLevelEnum("experience_level"),
-  biggestChallenge: biggestChallengeEnum("biggest_challenge").array(), // nullable by default
+  biggestChallenge: biggestChallengeEnum("biggest_challenge").array(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

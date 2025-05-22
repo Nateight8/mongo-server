@@ -22,15 +22,9 @@ export const userAccounts = gql`
 
   enum BiggestChallenge {
     RISK_MANAGEMENT
-    DISCIPLINE
-    STRATEGY
     CONSISTENCY
-  }
-
-  enum OnboardingStep {
-    ACCOUNT_SETUP
-    STEP_TWO
-    COMPLETED
+    PSYCHOLOGY
+    PATIENCE
   }
 
   type TradingAccount {
@@ -40,28 +34,23 @@ export const userAccounts = gql`
     goal: Goal!
     propFirm: String
     broker: String
-    accountSize: Float! # Changed from BigInt to Float to match the type in user.ts
+    accountSize: Float!
     accountCurrency: AccountCurrency!
     accountName: String!
     experienceLevel: ExperienceLevel
     biggestChallenge: [BiggestChallenge!]
     createdAt: String!
     updatedAt: String!
-    isProp: Boolean! # ← added this field
-  }
-
-  type User {
-    id: ID!
-    email: String!
-    onboardingStep: OnboardingStep
-    tradingAccount: TradingAccount
+    isProp: Boolean!
+    funded: Boolean! # ✅ NEW FIELD
+    fundedAt: String # ✅ NEW FIELD (nullable)
   }
 
   input AccountSetupInput {
     goal: Goal!
     propFirm: String
     broker: String!
-    accountSize: Float! # Changed from BigInt to Float to match the type in user.ts
+    accountSize: Float!
     accountCurrency: AccountCurrency!
     accountName: String!
     experienceLevel: ExperienceLevel
@@ -72,3 +61,40 @@ export const userAccounts = gql`
     setupAccount(input: AccountSetupInput!): TradingAccount!
   }
 `;
+
+enum Goal {
+  PROP = "PROP",
+  IMPROVE = "IMPROVE",
+  DISCIPLINE = "DISCIPLINE",
+  ANALYTICS = "ANALYTICS",
+}
+
+enum AccountCurrency {
+  USD = "USD",
+  EUR = "EUR",
+  GBP = "GBP",
+}
+
+enum ExperienceLevel {
+  BEGINNER = "BEGINNER",
+  INTERMEDIATE = "INTERMEDIATE",
+  ADVANCED = "ADVANCED",
+}
+
+enum BiggestChallenge {
+  RISK_MANAGEMENT = "RISK_MANAGEMENT",
+  DISCIPLINE = "DISCIPLINE",
+  STRATEGY = "STRATEGY",
+  CONSISTENCY = "CONSISTENCY",
+}
+
+export interface AccountSetupInput {
+  goal: Goal;
+  propFirm?: string | null;
+  broker: string;
+  accountSize: number;
+  accountCurrency: AccountCurrency;
+  accountName: string;
+  experienceLevel?: ExperienceLevel | null;
+  biggestChallenge?: BiggestChallenge[] | null;
+}

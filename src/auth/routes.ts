@@ -50,6 +50,24 @@ export function registerAuthRoutes(app: Express) {
 
   // Debug endpoint to check session/user
   app.get("/api/me", (req: Request, res: Response) => {
-    res.json({ user: req.user, session: req.session });
+    console.log("[DEBUG] /api/me - Session ID:", req.sessionID);
+    console.log("[DEBUG] /api/me - Session data:", req.session);
+    console.log("[DEBUG] /api/me - User:", req.user);
+    console.log("[DEBUG] /api/me - Cookies:", req.cookies);
+    console.log("[DEBUG] /api/me - Headers:", req.headers);
+    
+    res.json({ 
+      user: req.user, 
+      session: req.session,
+      cookies: req.cookies,
+      sessionId: req.sessionID,
+      headers: {
+        'x-forwarded-proto': req.headers['x-forwarded-proto'],
+        'x-forwarded-host': req.headers['x-forwarded-host'],
+        'host': req.headers['host'],
+        'referer': req.headers['referer'],
+        'origin': req.headers['origin']
+      }
+    });
   });
 }

@@ -97,17 +97,58 @@ export function setupPassport() {
     )
   );
 
-  passport.serializeUser(
-    (user: any, done: (err: any, id?: unknown) => void) => {
-      done(null, user);
+  passport.serializeUser(async (user: any, done) => {
+    try {
+      console.log('Serializing user:', user);
+      // Only store the user ID in the session
+      done(null, user.id);
+    } catch (error) {
+      console.error('Error in serializeUser:', error);
+      done(error);
     }
-  );
+  });
 
-  passport.deserializeUser(
-    (obj: any, done: (err: any, user?: any | false | null) => void) => {
-      done(null, obj);
+  passport.deserializeUser(async (id: string, done) => {
+    try {
+      console.log('Deserializing user with ID:', id);
+      if (!id) {
+        return done(null, false);
+      }
+      
+      const user = await db.query.users.findFirst({
+        where: (users) => eq(users.id, id)
+      });
+      
+      if (!user) {
+        return done(null, false);
+      }
+      
+      // Create a sanitized user object
+      const userData = {
+        id: user.id,
+        email: user.email,
+        name: user.name || undefined,
+        displayName: user.displayName || undefined,
+        image: user.image || undefined,
+        // Add other fields you want to expose to the client
+        emailVerified: user.emailVerified,
+        bio: user.bio || undefined,
+        location: user.location || undefined,
+        onboardingStep: user.onboardingStep,
+        onboardingCompleted: user.onboardingCompleted,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt
+      };
+      
+      console.log('Deserialized user:', userData);
+      
+      // Use type assertion to satisfy the type system
+      done(null, userData as any);
+    } catch (error) {
+      console.error('Error in deserializeUser:', error);
+      done(error);
     }
-  );
+  });
 
   return passport;
 }

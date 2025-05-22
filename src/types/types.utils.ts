@@ -1,17 +1,40 @@
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema/index.js";
+import { db } from "../db/index.js";
 import { PubSub } from "graphql-subscriptions";
 
-export default interface GraphqlContext {
-  session: Session;
+export interface UserSession {
+  id: string;
+  email: string;
+  name?: string | null;
+  image?: string | null;
+  // Add other user fields as needed
+}
+
+// User type that will be available in the GraphQL context
+export interface ContextUser {
+  id: string;
+  email: string;
+  name?: string;
+  displayName?: string;
+  image?: string;
+  emailVerified?: Date | null;
+  bio?: string;
+  location?: string;
+  onboardingStep?: string;
+  onboardingCompleted?: boolean;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export interface GraphqlContext {
   db: PostgresJsDatabase<typeof schema> & {
     $client: postgres.Sql<{}>;
   };
+  user: ContextUser | null;
   pubsub: PubSub;
 }
-
-// User type interface
 
 // Input type for createUser and updateUser
 

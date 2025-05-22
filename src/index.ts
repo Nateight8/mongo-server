@@ -1,7 +1,7 @@
 import { ApolloServer } from "@apollo/server";
 import { expressMiddleware } from "@apollo/server/express4";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
-import express, { NextFunction } from "express";
+import express from "express";
 import http from "http";
 import cors from "cors";
 import resolvers from "./graphql/resolvers/index.js";
@@ -38,21 +38,33 @@ if (isProduction) {
   app.set("trust proxy", 1);
 }
 
+// Add cookie parser middleware
+import cookieParser from "cookie-parser";
+app.use(cookieParser());
+
 const httpServer = http.createServer(app);
 
 // --- Auth setup ---
 setupPassport();
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || "supersecret", // Change in production
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: isProduction, // true in production (HTTPS)
-      sameSite: isProduction ? "none" : "lax", // 'none' for cross-site in prod, 'lax' for dev
-    },
-  })
-);
+
+// Session configuration
+const sessionConfig: session.SessionOptions = {
+  secret: process.env.SESSION_SECRET || "supersecret",
+  resave: false,
+  saveUninitialized: false,
+  name: "tradz.sid", // Custom session cookie name
+  cookie: {
+    httpOnly: true,
+    secure: isProduction, // true in production (HTTPS)
+    sameSite: isProduction ? "none" : "lax", // Required for cross-site cookies
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+    domain: isProduction ? ".urbancruise.vercel.app" : "localhost",
+  },
+  // Recommended to use a session store in production
+  // store: new (require('connect-pg-simple')(session))()
+};
+
+app.use(session(sessionConfig));
 app.use(passport.initialize());
 app.use(passport.session());
 registerAuthRoutes(app);
@@ -113,15 +125,21 @@ async function startServer() {
     express.json(),
     expressMiddleware(server, {
       context: async ({ req, res }) => {
-        console.log(
-          "[GraphQL context] req.headers.cookie:",
-          req.headers.cookie
-        );
-        console.log("[GraphQL context] req.sessionID:", req.sessionID);
+        console.log("[GraphQL context] req.session:", req.session);
         console.log("[GraphQL context] req.user:", req.user);
-        const session = req.user || null;
-        console.log("session from index.ts:", session);
-        return { db, session, pubsub };
+
+        // Get the user from the session
+        const user = req.user || null;
+
+        // Log the session ID and user ID for debugging
+        console.log("[GraphQL context] Session ID:", req.sessionID);
+        console.log("[GraphQL context] User ID:", user?.id);
+
+        return {
+          db,
+          user, // Pass the user object directly
+          pubsub,
+        };
       },
     })
   );
