@@ -1,7 +1,6 @@
 import { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import * as schema from "../db/schema/index.js";
-import { db } from "../db/index.js";
 import { PubSub } from "graphql-subscriptions";
 
 export interface UserSession {
@@ -28,12 +27,16 @@ export interface ContextUser {
   updatedAt?: Date;
 }
 
+import { Request, Response } from "express";
+
 export interface GraphqlContext {
   db: PostgresJsDatabase<typeof schema> & {
     $client: postgres.Sql<{}>;
   };
   user: ContextUser | null;
   pubsub: PubSub;
+  req: Request;
+  res: Response;
 }
 
 // Input type for createUser and updateUser

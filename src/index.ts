@@ -139,6 +139,8 @@ async function startServer() {
           db,
           user, // Pass the user object directly
           pubsub,
+          req,
+          res,
         };
       },
     })

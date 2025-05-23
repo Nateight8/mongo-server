@@ -40,4 +40,39 @@ export const userResolvers = {
       }
     },
   },
+  Mutation: {
+    logout: async (
+      _parent: unknown,
+      _args: unknown,
+      context: GraphqlContext
+    ) => {
+      const { req, res } = context;
+
+      if (!req || !res) {
+        throw new GraphQLError("Request/response not available in context");
+      }
+
+      return new Promise((resolve, reject) => {
+        req.logout((err: any) => {
+          if (err) {
+            return reject(new GraphQLError("Logout failed"));
+          }
+
+          // Also destroy session cookie
+          req.session.destroy((destroyErr: any) => {
+            if (destroyErr) {
+              return reject(new GraphQLError("Session destruction failed"));
+            }
+
+            res.clearCookie("connect.sid"); // Make sure this matches your session cookie name
+
+            resolve({
+              success: true,
+              message: "Logged out successfully",
+            });
+          });
+        });
+      });
+    },
+  },
 };

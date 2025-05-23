@@ -21,4 +21,13 @@ export const userTypeDefs = gql`
   type Query {
     me: User
   }
+
+  type Mutation {
+    logout: LogoutResponse!
+  }
+
+  type LogoutResponse {
+    success: Boolean!
+    message: String!
+  }
 `;
