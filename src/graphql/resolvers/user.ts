@@ -1,4 +1,4 @@
-import { users } from "@/db/schema/auth.js";
+import { users } from "../../db/schema/auth.js";
 import { GraphqlContext } from "@/types/types.utils.js";
 
 import { eq } from "drizzle-orm";
@@ -53,7 +53,7 @@ export const userResolvers = {
       }
 
       return new Promise((resolve, reject) => {
-        req.logout((err: any) => {
+        req.logout((err: Error | null) => {
           if (err) {
             return reject(new GraphQLError("Logout failed"));
           }

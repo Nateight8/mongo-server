@@ -3,10 +3,10 @@ import { GraphqlContext } from "@/types/types.utils.js";
 
 import { and, eq } from "drizzle-orm";
 
-import { generateSnowflakeId } from "@/utils/snowflake.js";
+import { generateSnowflakeId } from "../../utils/snowflake.js";
 import { AccountSetupInput } from "../typeDefs/account.js";
-import { tradingAccounts } from "@/db/schema/account.js";
-import { users } from "@/db/schema/auth.js";
+import { tradingAccounts } from "../../db/schema/account.js";
+import { users } from "../../db/schema/auth.js";
 
 export const accountResolvers = {
   Query: {

@@ -1,8 +1,8 @@
 import { GraphQLError } from "graphql";
 import { CreateTradingPlanInput } from "../typeDefs/plan.js";
-import { GraphqlContext } from "@/types/types.utils.js";
-import { tradingPlans } from "@/db/schema/plan.js";
-import { users } from "@/db/schema/auth.js";
+import { GraphqlContext } from "../../types/types.utils.js";
+import { tradingPlans } from "../../db/schema/plan.js";
+import { users } from "../../db/schema/auth.js";
 import { eq } from "drizzle-orm";
 
 export const planResolvers = {

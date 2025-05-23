@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
 import { CreateSafetyNetInput } from "../typeDefs/safety.js";
-import { GraphqlContext } from "@/types/types.utils.js";
+import { GraphqlContext } from "../../types/types.utils.js";
 import { GraphQLError } from "graphql";
-import { safetyNets } from "@/db/schema/safety-net.js";
-import { users } from "@/db/schema/auth.js";
+import { safetyNets } from "../../db/schema/safety-net.js";
+import { users } from "../../db/schema/auth.js";
 
 export const safetyNetResolvers = {
   Mutation: {
