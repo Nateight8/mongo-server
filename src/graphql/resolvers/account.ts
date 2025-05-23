@@ -45,10 +45,12 @@ export const accountResolvers = {
       const [account] = await db
         .select()
         .from(tradingAccounts)
-        .where(and(
-          eq(tradingAccounts.id, args.id),
-          eq(tradingAccounts.userId, userId)
-        ));
+        .where(
+          and(
+            eq(tradingAccounts.id, args.id),
+            eq(tradingAccounts.userId, userId)
+          )
+        );
 
       return account ?? null;
     },

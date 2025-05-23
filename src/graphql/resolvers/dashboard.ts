@@ -1,0 +1,121 @@
+const mockTrades = [
+  {
+    id: "1",
+    symbol: "EURUSD",
+    date: "2024-03-20",
+    account: "FTMO FUNDED",
+    direction: "Long",
+    status: "CLOSED",
+    projectedEntry: 1.085,
+    actualEntry: 1.0845,
+    projectedSL: 1.082,
+    actualExit: 1.087,
+    actualPL: 25.0,
+    maxPossiblePL: 30.0,
+    balance: 12500.0,
+  },
+  {
+    id: "2",
+    symbol: "GBPUSD",
+    date: "2024-03-19",
+    account: "GOATFUNDED DEMO",
+    direction: "Short",
+    status: "RUNNING",
+    projectedEntry: 1.275,
+    actualEntry: 1.2745,
+    projectedSL: 1.278,
+    actualExit: 1.272,
+    actualPL: 25.0,
+    maxPossiblePL: 30.0,
+    balance: 10000.0,
+  },
+  {
+    id: "3",
+    symbol: "USDJPY",
+    date: "2024-03-18",
+    account: "FTMO CHALLENGE",
+    direction: "Long",
+    status: "CLOSED",
+    projectedEntry: 151.5,
+    actualEntry: 151.45,
+    projectedSL: 151.2,
+    actualExit: 151.8,
+    actualPL: 35.0,
+    maxPossiblePL: 40.0,
+    balance: 5000.0,
+  },
+  {
+    id: "4",
+    symbol: "AUDUSD",
+    date: "2024-03-17",
+    account: "MYFUNDEDFX",
+    direction: "Short",
+    status: "RUNNING",
+    projectedEntry: 0.655,
+    actualEntry: 0.6545,
+    projectedSL: 0.658,
+    actualExit: 0.652,
+    actualPL: 25.0,
+    maxPossiblePL: 30.0,
+    balance: 7500.0,
+  },
+  {
+    id: "5",
+    symbol: "USDCAD",
+    date: "2024-03-16",
+    account: "FTMO FUNDED",
+    direction: "Long",
+    status: "CLOSED",
+    projectedEntry: 1.355,
+    actualEntry: 1.3545,
+    projectedSL: 1.352,
+    actualExit: 1.357,
+    actualPL: 25.0,
+    maxPossiblePL: 30.0,
+    balance: 12500.0,
+  },
+];
+
+export const dashboardResolvers = {
+  Query: {
+    dashboard: () => ({
+      portfolioOverview: {
+        totalValue: 100000,
+        pnl: {
+          value: "+5000",
+          percentage: "+5%",
+        },
+        overviewStats: {
+          winRate: {
+            value: "60%",
+            percentage: "+10%",
+          },
+          profitFactor: {
+            value: "1.5",
+            percentage: "+5%",
+          },
+          avgReturn: {
+            value: "2.3%",
+            percentage: "+1.2%",
+          },
+          maxDrawdown: {
+            value: "-4%",
+            percentage: "-1%",
+          },
+          tradeStats: {
+            open: mockTrades.filter((t) => t.status === "RUNNING").length,
+            total: mockTrades.length,
+          },
+        },
+      },
+      winLossTradeStats: {
+        totalTrades: mockTrades.length,
+        wins: mockTrades.filter((t) => t.actualPL > 0).length,
+        losses: mockTrades.filter((t) => t.actualPL <= 0).length,
+        totalRisk: 200, // placeholder
+        totalReward: 400, // placeholder
+      },
+      recentTrades: mockTrades,
+    }),
+  },
+};

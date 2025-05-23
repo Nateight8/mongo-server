@@ -125,15 +125,11 @@ async function startServer() {
     express.json(),
     expressMiddleware(server, {
       context: async ({ req, res }) => {
-        console.log("[GraphQL context] req.session:", req.session);
-        console.log("[GraphQL context] req.user:", req.user);
+        // console.log("[GraphQL context] req.session:", req.session);
+        // console.log("[GraphQL context] req.user:", req.user);
 
         // Get the user from the session
         const user = req.user || null;
-
-        // Log the session ID and user ID for debugging
-        console.log("[GraphQL context] Session ID:", req.sessionID);
-        console.log("[GraphQL context] User ID:", user?.id);
 
         return {
           db,

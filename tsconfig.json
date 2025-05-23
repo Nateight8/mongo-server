@@ -26,9 +26,9 @@
     "src/**/*.d.ts",
     "src/db/schema/types.d.ts",
     "src/db/index.js",
-    "src/db/schema/index.js",
-    "src/db/schema/auth.js",
-    "src/db/schema/account.js"
+    "src/db/schema/index.ts",
+    "src/db/schema/auth.ts",
+    "src/db/schema/account.ts"
   ],
   "allowJs": true,
   "checkJs": true
