@@ -15,7 +15,7 @@ export const userResolvers = {
         });
       }
 
-      console.log("User here:", user);
+
 
       try {
         const userRecord = await db

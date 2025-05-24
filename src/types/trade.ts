@@ -16,4 +16,20 @@ export interface LogTradeInput {
 export interface LogTradeResponse {
   success: boolean;
   message?: string;
-} 
+}
+
+export interface TradePerformance {
+  time: string;
+  pnl: number;
+}
+
+export interface TradeAnalytics {
+  symbol: string;
+  category: string;
+  performance: TradePerformance[];
+}
+
+export interface EquityPoint {
+  time: string;
+  equity: number;
+}

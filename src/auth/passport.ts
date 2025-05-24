@@ -99,7 +99,7 @@ export function setupPassport() {
 
   passport.serializeUser(async (user: any, done) => {
     try {
-      console.log('Serializing user:', user);
+
       // Only store the user ID in the session
       done(null, user.id);
     } catch (error) {
@@ -110,7 +110,7 @@ export function setupPassport() {
 
   passport.deserializeUser(async (id: string, done) => {
     try {
-      console.log('Deserializing user with ID:', id);
+
       if (!id) {
         return done(null, false);
       }
@@ -140,7 +140,7 @@ export function setupPassport() {
         updatedAt: user.updatedAt
       };
       
-      console.log('Deserialized user:', userData);
+
       
       // Use type assertion to satisfy the type system
       done(null, userData as any);

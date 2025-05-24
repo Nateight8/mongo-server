@@ -12,13 +12,13 @@ export function registerAuthRoutes(app: Express) {
   app.get(
     "/api/auth/google/callback",
     (req, res, next) => {
-      console.log("[OAuth Callback] Route hit");
+
       next();
     },
     passport.authenticate("google", { failureRedirect: "/login" }),
     (req: Request, res: Response) => {
-      console.log("[OAuth Callback] req.user:", req.user);
-      console.log("[OAuth Callback] req.session:", req.session);
+
+
       
       // Determine the base frontend URL
       const baseFrontendUrl = process.env.NODE_ENV === "production"
@@ -29,7 +29,7 @@ export function registerAuthRoutes(app: Express) {
       const user = req.user as any;
       const redirectPath = user?.onboardingCompleted ? "/dashboard" : "/sign-up";
       
-      console.log(`[OAuth Callback] Redirecting to: ${baseFrontendUrl}${redirectPath}`);
+
       res.redirect(`${baseFrontendUrl}${redirectPath}`);
     }
   );
