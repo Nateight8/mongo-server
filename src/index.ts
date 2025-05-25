@@ -31,29 +31,48 @@ const allowedOrigins = [
   frontendUrl,
   "http://localhost:3000",
   "https://studio.apollographql.com",
-  "https://journal-gamma-two.vercel.app",
-].filter(Boolean);
+  "https://journal-gamma-two.vercel.app"
+].filter(Boolean) as string[];
+
+console.log('Allowed CORS origins:', allowedOrigins);
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    if (!origin) {
+      console.log('No origin in CORS check - allowing');
+      return callback(null, true);
+    }
 
-    if (
-      allowedOrigins.includes(origin) ||
-      allowedOrigins.some((allowed) =>
-        origin.endsWith(new URL(allowed).hostname)
-      )
-    ) {
+    // Check if the origin is in the allowed list
+    const isAllowed = allowedOrigins.some(allowed => {
+      try {
+        const allowedUrl = new URL(allowed);
+        const originUrl = new URL(origin);
+        return originUrl.hostname === allowedUrl.hostname || 
+               originUrl.hostname.endsWith('.' + allowedUrl.hostname.replace('www.', ''));
+      } catch (e) {
+        console.error('Error checking CORS origin:', e);
+        return false;
+      }
+    });
+
+    if (isAllowed) {
+      console.log(`CORS allowed for origin: ${origin}`);
       return callback(null, true);
     }
 
     const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
     console.error(msg);
+    console.log('Allowed origins:', allowedOrigins);
     return callback(new Error(msg), false);
   },
   credentials: true,
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
   optionsSuccessStatus: 200, // Some legacy browsers choke on 204
+  preflightContinue: false,
+  maxAge: 600 // Cache preflight for 10 minutes
 };
 
 const app = express();
@@ -84,18 +103,37 @@ const sessionConfig: session.SessionOptions = {
     secure: isProduction, // true in production (HTTPS)
     sameSite: isProduction ? "none" : "lax", // Required for cross-site cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
-    domain: isProduction
-      ? process.env.COOKIE_DOMAIN ||
-        new URL(frontendUrl).hostname.replace("www.", "")
-      : "localhost",
+    domain: isProduction ? 
+      (process.env.COOKIE_DOMAIN || new URL(frontendUrl).hostname.replace('www.', '')) : 
+      undefined, // Don't set domain in development
   },
+  // Add store if you're using a session store in production
+  // store: isProduction ? new (require('connect-pg-simple')(session))() : undefined,
   // Recommended to use a session store in production
   // store: new (require('connect-pg-simple')(session))()
 };
 
+// Trust first proxy in production
+if (isProduction) {
+  app.set('trust proxy', 1);
+}
+
+// Session middleware
 app.use(session(sessionConfig));
+
+// Initialize Passport and restore authentication state from session
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Log session info for debugging
+app.use((req, res, next) => {
+  console.log('Session ID:', req.sessionID);
+  console.log('Session data:', req.session);
+  console.log('User authenticated:', req.isAuthenticated());
+  next();
+});
+
+// Register auth routes
 registerAuthRoutes(app);
 
 // Create a PubSub instance
