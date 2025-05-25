@@ -21,10 +21,17 @@ export function registerAuthRoutes(app: Express) {
       console.log("[OAuth Callback] req.session:", req.session);
 
       // Determine the base frontend URL
-      const baseFrontendUrl =
-        process.env.NODE_ENV === "production"
-          ? "https://urbancruise.vercel.app"
-          : "http://localhost:3000";
+      // Priority: FRONTEND_URL env var > NODE_ENV based URL > default localhost
+      let baseFrontendUrl = process.env.FRONTEND_URL;
+      
+      if (!baseFrontendUrl) {
+        console.log('[OAuth Callback] NODE_ENV:', process.env.NODE_ENV);
+        baseFrontendUrl = process.env.NODE_ENV === 'production'
+          ? 'https://journal-gamma-two.vercel.app'
+          : 'http://localhost:3000';
+      }
+      
+      console.log('[OAuth Callback] Using frontend URL:', baseFrontendUrl);
 
       // Check if user has completed onboarding
       const user = req.user as any;
