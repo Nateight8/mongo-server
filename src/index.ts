@@ -25,9 +25,10 @@ interface MyContext {
 
 const isProduction = process.env.NODE_ENV === "production";
 
-// --- SIMPLIFIED CORS FOR DEV ---
+// --- CORS Configuration ---
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 const corsOptions: CorsOptions = {
-  origin: "http://localhost:3000",
+  origin: [frontendUrl, 'http://localhost:3000', 'https://studio.apollographql.com'],
   credentials: true,
 };
 
@@ -58,7 +59,7 @@ const sessionConfig: session.SessionOptions = {
     secure: isProduction, // true in production (HTTPS)
     sameSite: isProduction ? "none" : "lax", // Required for cross-site cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
-    domain: isProduction ? ".urbancruise.vercel.app" : "localhost",
+    domain: isProduction ? new URL(frontendUrl).hostname.replace('www.', '') : "localhost",
   },
   // Recommended to use a session store in production
   // store: new (require('connect-pg-simple')(session))()
@@ -145,8 +146,9 @@ async function startServer() {
   const port = process.env.PORT || 4000;
   await new Promise<void>((resolve) => httpServer.listen({ port }, resolve));
 
-  console.log(`🚀 Server ready at http://localhost:${port}/graphql`);
-  console.log(`🔌 WebSocket server ready at ws://localhost:${port}/graphql/ws`);
+  const serverUrl = isProduction ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME || `localhost:${port}`}` : `http://localhost:${port}`;
+  console.log(`🚀 Server ready at ${serverUrl}/graphql`);
+  console.log(`🔌 WebSocket server ready at ${serverUrl.replace('http', 'ws')}/graphql/ws`);
 }
 
 startServer();
