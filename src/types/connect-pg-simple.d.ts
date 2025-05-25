@@ -1,7 +1,7 @@
 import { Store } from 'express-session';
 import { Pool } from 'pg';
 
-declare function pgConnect(session: any): new (options: {
+declare function pgSession(session: any): new (options: {
   pool: Pool;
   tableName?: string;
   schemaName?: string;
@@ -14,4 +14,4 @@ declare function pgConnect(session: any): new (options: {
   pruneSessions(): Promise<void>;
 };
 
-export = pgConnect;
+export = pgSession;
