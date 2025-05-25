@@ -27,12 +27,26 @@ const isProduction = process.env.NODE_ENV === "production";
 
 // --- CORS Configuration ---
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+
+// Function to normalize URLs for comparison
+const normalizeUrl = (url: string): string => {
+  try {
+    const urlObj = new URL(url);
+    // Remove trailing slashes and convert to lowercase for comparison
+    return `${urlObj.protocol}//${urlObj.hostname}${urlObj.port ? `:${urlObj.port}` : ''}`.toLowerCase();
+  } catch (e) {
+    console.error('Error normalizing URL:', url, e);
+    return url.toLowerCase();
+  }
+};
+
+// Define allowed origins
 const allowedOrigins = [
   frontendUrl,
   "http://localhost:3000",
   "https://studio.apollographql.com",
   "https://journal-gamma-two.vercel.app"
-].filter(Boolean) as string[];
+].filter(Boolean).map(normalizeUrl);
 
 console.log('Allowed CORS origins:', allowedOrigins);
 
@@ -44,13 +58,24 @@ const corsOptions: CorsOptions = {
       return callback(null, true);
     }
 
+    // Normalize the incoming origin for comparison
+    const normalizedOrigin = normalizeUrl(origin);
+    
     // Check if the origin is in the allowed list
     const isAllowed = allowedOrigins.some(allowed => {
       try {
         const allowedUrl = new URL(allowed);
-        const originUrl = new URL(origin);
-        return originUrl.hostname === allowedUrl.hostname || 
-               originUrl.hostname.endsWith('.' + allowedUrl.hostname.replace('www.', ''));
+        const originUrl = new URL(normalizedOrigin);
+        
+        // Check exact match first
+        if (normalizedOrigin === allowed) return true;
+        
+        // Check if it's a subdomain or matches the main domain
+        const allowedHost = allowedUrl.hostname.replace('www.', '');
+        const originHost = originUrl.hostname.replace('www.', '');
+        
+        return originHost === allowedHost || 
+               originHost.endsWith('.' + allowedHost);
       } catch (e) {
         console.error('Error checking CORS origin:', e);
         return false;
@@ -58,18 +83,19 @@ const corsOptions: CorsOptions = {
     });
 
     if (isAllowed) {
-      console.log(`CORS allowed for origin: ${origin}`);
+      console.log(`CORS allowed for origin: ${normalizedOrigin}`);
       return callback(null, true);
     }
 
-    const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
+    const msg = `The CORS policy for this site does not allow access from the specified Origin: ${normalizedOrigin}`;
     console.error(msg);
     console.log('Allowed origins:', allowedOrigins);
     return callback(new Error(msg), false);
   },
   credentials: true,
   methods: ['GET', 'POST', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-csrf-token'],
+  exposedHeaders: ['set-cookie'],
   optionsSuccessStatus: 200, // Some legacy browsers choke on 204
   preflightContinue: false,
   maxAge: 600 // Cache preflight for 10 minutes
@@ -92,6 +118,42 @@ const httpServer = http.createServer(app);
 setupPassport();
 
 // Session configuration
+const getCookieDomain = () => {
+  if (!isProduction) return undefined; // No domain in development
+  
+  // If COOKIE_DOMAIN is explicitly set, use it
+  if (process.env.COOKIE_DOMAIN) {
+    return process.env.COOKIE_DOMAIN;
+  }
+  
+  try {
+    // Extract domain from frontend URL
+    const url = new URL(frontendUrl);
+    const hostname = url.hostname;
+    
+    // For IP addresses, return undefined (no domain)
+    if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      return undefined;
+    }
+    
+    // For localhost, return undefined
+    if (hostname === 'localhost') {
+      return undefined;
+    }
+    
+    // For production, use the domain without subdomains
+    const parts = hostname.split('.');
+    if (parts.length > 2) {
+      return `.${parts.slice(-2).join('.')}`; // Use main domain and TLD
+    }
+    
+    return hostname;
+  } catch (e) {
+    console.error('Error determining cookie domain:', e);
+    return undefined;
+  }
+};
+
 const sessionConfig: session.SessionOptions = {
   secret: process.env.SESSION_SECRET || "supersecret",
   resave: false,
@@ -103,9 +165,7 @@ const sessionConfig: session.SessionOptions = {
     secure: isProduction, // true in production (HTTPS)
     sameSite: isProduction ? "none" : "lax", // Required for cross-site cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
-    domain: isProduction ? 
-      (process.env.COOKIE_DOMAIN || new URL(frontendUrl).hostname.replace('www.', '')) : 
-      undefined, // Don't set domain in development
+    domain: getCookieDomain(),
   },
   // Add store if you're using a session store in production
   // store: isProduction ? new (require('connect-pg-simple')(session))() : undefined,
