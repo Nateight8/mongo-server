@@ -26,30 +26,34 @@ interface MyContext {
 const isProduction = process.env.NODE_ENV === "production";
 
 // --- CORS Configuration ---
-const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
 const allowedOrigins = [
   frontendUrl,
-  'http://localhost:3000',
-  'https://studio.apollographql.com',
-  'https://journal-gamma-two.vercel.app'
+  "http://localhost:3000",
+  "https://studio.apollographql.com",
+  "https://journal-gamma-two.vercel.app",
 ].filter(Boolean);
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.includes(origin) || 
-        allowedOrigins.some(allowed => origin.endsWith(new URL(allowed).hostname))) {
+
+    if (
+      allowedOrigins.includes(origin) ||
+      allowedOrigins.some((allowed) =>
+        origin.endsWith(new URL(allowed).hostname)
+      )
+    ) {
       return callback(null, true);
     }
-    
+
     const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
     console.error(msg);
     return callback(new Error(msg), false);
   },
   credentials: true,
-  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+  optionsSuccessStatus: 200, // Some legacy browsers choke on 204
 };
 
 const app = express();
@@ -80,9 +84,10 @@ const sessionConfig: session.SessionOptions = {
     secure: isProduction, // true in production (HTTPS)
     sameSite: isProduction ? "none" : "lax", // Required for cross-site cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
-    domain: isProduction ? 
-      (process.env.COOKIE_DOMAIN || new URL(frontendUrl).hostname.replace('www.', '')) : 
-      "localhost",
+    domain: isProduction
+      ? process.env.COOKIE_DOMAIN ||
+        new URL(frontendUrl).hostname.replace("www.", "")
+      : "localhost",
   },
   // Recommended to use a session store in production
   // store: new (require('connect-pg-simple')(session))()
@@ -149,8 +154,8 @@ async function startServer() {
     express.json(),
     expressMiddleware(server, {
       context: async ({ req, res }) => {
-        // console.log("[GraphQL context] req.session:", req.session);
-        // console.log("[GraphQL context] req.user:", req.user);
+        console.log("[GraphQL context] req.session:", req.session);
+        console.log("[GraphQL context] req.user:", req.user);
 
         // Get the user from the session
         const user = req.user || null;
@@ -169,9 +174,13 @@ async function startServer() {
   const port = process.env.PORT || 4000;
   await new Promise<void>((resolve) => httpServer.listen({ port }, resolve));
 
-  const serverUrl = isProduction ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME || `localhost:${port}`}` : `http://localhost:${port}`;
+  const serverUrl = isProduction
+    ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME || `localhost:${port}`}`
+    : `http://localhost:${port}`;
   console.log(`🚀 Server ready at ${serverUrl}/graphql`);
-  console.log(`🔌 WebSocket server ready at ${serverUrl.replace('http', 'ws')}/graphql/ws`);
+  console.log(
+    `🔌 WebSocket server ready at ${serverUrl.replace("http", "ws")}/graphql/ws`
+  );
 }
 
 startServer();
