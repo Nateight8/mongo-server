@@ -1,6 +1,6 @@
-import { journalingNoteTemplates } from "@/db/schema/journal.js";
-import { tradingPlans } from "@/db/schema/plan.js";
-import { GraphqlContext } from "@/types/types.utils.js";
+import { journalingNoteTemplates } from "../../db/schema/journal.js";
+import { tradingPlans } from "../../db/schema/plan.js";
+import { GraphqlContext } from "../../types/types.utils.js";
 import { eq } from "drizzle-orm";
 import { GraphQLError } from "graphql";
 

@@ -23,15 +23,7 @@
   },
   "include": [
     "src/**/*.ts",
-    "src/**/*.d.ts",
-    "src/db/schema/types.d.ts",
-    "src/db/index.ts",
-    "src/db/schema/index.ts",
-    "src/db/schema/auth.ts",
-    "src/db/schema/account.ts",
-    "src/db/schema/safety-net.ts",
-    "src/db/schema/plan.ts",
-    "src/db/schema/journal.ts"
+    "src/**/*.d.ts"
   ],
   "allowJs": true,
   "checkJs": true

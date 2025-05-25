@@ -1,6 +1,6 @@
-import { mockTradeAnalytics } from "@/lib/data.js";
-import { getEquityCurve } from "@/services/equity-curve.js";
-import { getSymbolAnalytics } from "@/services/symbol.js";
+import { mockTradeAnalytics } from "../../lib/data.js";
+import { getEquityCurve } from "../../services/equity-curve.js";
+import { getSymbolAnalytics } from "../../services/symbol.js";
 
 export const analyticsResolver = {
   Query: {

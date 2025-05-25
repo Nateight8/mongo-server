@@ -1,4 +1,4 @@
-// src/services/analytics/getSymbolAnalytics.ts
+// services/analytics/getSymbolAnalytics.ts
 
 interface TradePerformance {
   time: string;

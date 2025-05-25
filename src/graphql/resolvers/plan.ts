@@ -11,11 +11,11 @@ import {
 } from "../typeDefs/plan.js";
 import { generateTradingPlanTemplate } from "../../lib/templates/trading-plan.js";
 
-import { sharedTradingPlans, tradingPlans } from "@/db/schema/plan.js";
-import { users } from "@/db/schema/auth.js";
-import { createEmptyNote, formatNote } from "@/lib/templates/util.js";
-import { journalingNoteTemplates, journals } from "@/db/schema/journal.js";
-import { generateJournalNoteTemplate } from "@/lib/templates/journaling-note.js";
+import { sharedTradingPlans, tradingPlans } from "../../db/schema/plan.js";
+import { users } from "../../db/schema/auth.js";
+import { createEmptyNote, formatNote } from "../../lib/templates/util.js";
+import { journalingNoteTemplates, journals } from "../../db/schema/journal.js";
+import { generateJournalNoteTemplate } from "../../lib/templates/journaling-note.js";
 
 // Enhanced formatTradingPlanNote function
 export const formatTradingPlanNote = async (
