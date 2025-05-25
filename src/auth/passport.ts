@@ -99,30 +99,30 @@ export function setupPassport() {
 
   passport.serializeUser(async (user: any, done) => {
     try {
-
+      console.log("Serializing user:", user);
       // Only store the user ID in the session
       done(null, user.id);
     } catch (error) {
-      console.error('Error in serializeUser:', error);
+      console.error("Error in serializeUser:", error);
       done(error);
     }
   });
 
   passport.deserializeUser(async (id: string, done) => {
     try {
-
+      console.log("Deserializing user with ID:", id);
       if (!id) {
         return done(null, false);
       }
-      
+
       const user = await db.query.users.findFirst({
-        where: (users) => eq(users.id, id)
+        where: (users) => eq(users.id, id),
       });
-      
+
       if (!user) {
         return done(null, false);
       }
-      
+
       // Create a sanitized user object
       const userData = {
         id: user.id,
@@ -137,15 +137,15 @@ export function setupPassport() {
         onboardingStep: user.onboardingStep,
         onboardingCompleted: user.onboardingCompleted,
         createdAt: user.createdAt,
-        updatedAt: user.updatedAt
+        updatedAt: user.updatedAt,
       };
-      
 
-      
+      console.log("Deserialized user:", userData);
+
       // Use type assertion to satisfy the type system
       done(null, userData as any);
     } catch (error) {
-      console.error('Error in deserializeUser:', error);
+      console.error("Error in deserializeUser:", error);
       done(error);
     }
   });

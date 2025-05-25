@@ -5,6 +5,7 @@ import { safetyNetResolvers } from "./safety-net.js";
 import { planResolvers } from "./plan.js";
 import { dashboardResolvers } from "./dashboard.js";
 import { analyticsResolver } from "./analytics.js";
+import { journalResolvers } from "./journal.js";
 
 // import listenersResolvers from "./listeners.js";
 
@@ -15,7 +16,8 @@ const resolvers = merge(
   safetyNetResolvers,
   planResolvers,
   dashboardResolvers,
-  analyticsResolver
+  analyticsResolver,
+  journalResolvers
 );
 
 export default resolvers;

@@ -7,7 +7,6 @@ import {
   timestamp,
   boolean,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
 import { tradingAccounts } from "./account.js";
 
 export const journals = pgTable("journals", {
@@ -62,10 +61,3 @@ export const journals = pgTable("journals", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
-
-export const journalsRelations = relations(journals, ({ one }) => ({
-  account: one(tradingAccounts, {
-    fields: [journals.accountId],
-    references: [tradingAccounts.id],
-  }),
-}));

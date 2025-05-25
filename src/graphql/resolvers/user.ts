@@ -3,6 +3,7 @@ import { GraphqlContext } from "@/types/types.utils.js";
 
 import { eq } from "drizzle-orm";
 import { GraphQLError } from "graphql";
+import { tradingAccounts } from "../../db/schema/account.js";
 
 export const userResolvers = {
   Query: {
@@ -15,15 +16,12 @@ export const userResolvers = {
         });
       }
 
-
-
       try {
-        const userRecord = await db
+        // First get the user
+        const [userData] = await db
           .select()
           .from(users)
           .where(eq(users.id, user.id));
-
-        const userData = userRecord[0];
 
         if (!userData) {
           throw new GraphQLError("User not found", {
@@ -31,7 +29,34 @@ export const userResolvers = {
           });
         }
 
-        return userData;
+
+        // Then get the user's accounts with required fields for TradingAccount type
+        const userAccounts = await db
+          .select({
+            id: tradingAccounts.id,
+            accountId: tradingAccounts.accountId,
+            accountName: tradingAccounts.accountName,
+            broker: tradingAccounts.broker,
+            accountSize: tradingAccounts.accountSize,
+            accountCurrency: tradingAccounts.accountCurrency,
+            isProp: tradingAccounts.isProp,
+            funded: tradingAccounts.funded,
+            fundedAt: tradingAccounts.fundedAt,
+            propFirm: tradingAccounts.propFirm,
+            goal: tradingAccounts.goal,
+            experienceLevel: tradingAccounts.experienceLevel,
+            biggestChallenge: tradingAccounts.biggestChallenge,
+            createdAt: tradingAccounts.createdAt,
+            updatedAt: tradingAccounts.updatedAt
+          })
+          .from(tradingAccounts)
+          .where(eq(tradingAccounts.userId, user.id));
+
+        // Return user with accounts
+        return {
+          ...userData,
+          accounts: userAccounts
+        };
       } catch (error) {
         console.error("Error fetching user:", error);
         throw new GraphQLError("Failed to fetch user", {

@@ -26,12 +26,12 @@
     "src/**/*.d.ts",
     "src/db/schema/types.d.ts",
     "src/db/index.ts",
-    "src/db/schema/index.js",
-    "src/db/schema/auth.js",
-    "src/db/schema/account.js",
-    "src/db/schema/safety-net.js",
-    "src/db/schema/plan.js",
-    "src/db/schema/journal.js"
+    "src/db/schema/index.ts",
+    "src/db/schema/auth.ts",
+    "src/db/schema/account.ts",
+    "src/db/schema/safety-net.ts",
+    "src/db/schema/plan.ts",
+    "src/db/schema/journal.ts"
   ],
   "allowJs": true,
   "checkJs": true

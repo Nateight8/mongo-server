@@ -6,6 +6,7 @@ import { safetyNetTypeDefs } from "./safety.js";
 import { userTypeDefs } from "./user.js";
 import { dashboardTypeDefs } from "./dashboard.js";
 import { analyticsTypeDefs } from "./analytics.js";
+import { journalTypeDefs } from "./journal.js";
 
 const typeDefs = [
   userTypeDefs,
@@ -14,6 +15,7 @@ const typeDefs = [
   planTypeDefs,
   dashboardTypeDefs,
   analyticsTypeDefs,
+  journalTypeDefs,
 ];
 
 export default typeDefs;

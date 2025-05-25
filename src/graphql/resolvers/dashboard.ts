@@ -1,3 +1,8 @@
+import { tradingPlans } from "@/db/schema/plan.js";
+import { GraphqlContext } from "@/types/types.utils.js";
+import { eq } from "drizzle-orm";
+import { GraphQLError } from "graphql";
+
 const mockTrades = [
   {
     id: "1",
@@ -78,44 +83,75 @@ const mockTrades = [
 
 export const dashboardResolvers = {
   Query: {
-    dashboard: () => ({
-      portfolioOverview: {
-        totalValue: 100000,
-        pnl: {
-          value: "+5000",
-          percentage: "+5%",
-        },
-        overviewStats: {
-          winRate: {
-            value: "60%",
-            percentage: "+10%",
+    dashboard: async (_: unknown, __: unknown, ctx: GraphqlContext) => {
+      const { db, user } = ctx;
+
+      if (!user?.id) {
+        throw new GraphQLError("Not authenticated", {
+          extensions: { code: "UNAUTHORIZED" },
+        });
+      }
+
+      try {
+        const [plan] = await db
+          .select()
+          .from(tradingPlans)
+          .where(eq(tradingPlans.userId, user.id))
+          .limit(1);
+
+        if (!plan) {
+          throw new GraphQLError("Trading plan not found", {
+            extensions: { code: "NOT_FOUND" },
+          });
+        }
+
+        //mock return for now
+        return {
+          portfolioOverview: {
+            totalValue: 100000,
+            pnl: {
+              value: "+5000",
+              percentage: "+5%",
+            },
+            overviewStats: {
+              winRate: {
+                value: "60%",
+                percentage: "+10%",
+              },
+              profitFactor: {
+                value: "1.5",
+                percentage: "+5%",
+              },
+              avgReturn: {
+                value: "2.3%",
+                percentage: "+1.2%",
+              },
+              maxDrawdown: {
+                value: "-4%",
+                percentage: "-1%",
+              },
+              tradeStats: {
+                open: mockTrades.filter((t) => t.status === "RUNNING").length,
+                total: mockTrades.length,
+              },
+            },
           },
-          profitFactor: {
-            value: "1.5",
-            percentage: "+5%",
+          winLossTradeStats: {
+            totalTrades: mockTrades.length,
+            wins: mockTrades.filter((t) => t.actualPL > 0).length,
+            losses: mockTrades.filter((t) => t.actualPL <= 0).length,
+            totalRisk: 200, // placeholder
+            totalReward: 400, // placeholder
           },
-          avgReturn: {
-            value: "2.3%",
-            percentage: "+1.2%",
-          },
-          maxDrawdown: {
-            value: "-4%",
-            percentage: "-1%",
-          },
-          tradeStats: {
-            open: mockTrades.filter((t) => t.status === "RUNNING").length,
-            total: mockTrades.length,
-          },
-        },
-      },
-      winLossTradeStats: {
-        totalTrades: mockTrades.length,
-        wins: mockTrades.filter((t) => t.actualPL > 0).length,
-        losses: mockTrades.filter((t) => t.actualPL <= 0).length,
-        totalRisk: 200, // placeholder
-        totalReward: 400, // placeholder
-      },
-      recentTrades: mockTrades,
-    }),
+          recentTrades: mockTrades,
+          tradingPlan: plan,
+        };
+      } catch (error) {
+        console.error("Error fetching trading plan:", error);
+        throw new GraphQLError("Failed to fetch trading plan", {
+          extensions: { code: "INTERNAL_SERVER_ERROR" },
+        });
+      }
+    },
   },
 };

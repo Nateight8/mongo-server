@@ -9,6 +9,7 @@ export const dashboardTypeDefs = gql`
     portfolioOverview: PortfolioOverview!
     winLossTradeStats: WinLossTradeStats!
     recentTrades: [RecentTrade!]!
+    tradingPlan: TradingPlan
   }
 
   type PortfolioOverview {

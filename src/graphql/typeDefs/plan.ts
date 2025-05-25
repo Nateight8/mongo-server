@@ -1,15 +1,37 @@
+// === GraphQL Type Definitions ===
 import { gql } from "graphql-tag";
 
 export const planTypeDefs = gql`
+  scalar DateTime
+
+  enum PlanVisibility {
+    PUBLIC
+    PRIVATE
+  }
+
+  enum NoteFormat {
+    MARKDOWN
+    HTML
+    JSON
+  }
+
+  type NoteContent {
+    raw: String!
+    html: String!
+    format: NoteFormat!
+  }
+
   type TradingPlan {
     id: ID!
+    userId: ID!
     tradingStyle: String!
     tradingSessions: [String!]!
     timeZone: String!
     riskRewardRatio: Int!
-    note: String
-    createdAt: String!
-    updatedAt: String!
+    isOwner: Boolean!
+    note: NoteContent
+    createdAt: DateTime!
+    updatedAt: DateTime!
   }
 
   input TradingPlanInput {
@@ -18,24 +40,58 @@ export const planTypeDefs = gql`
     timeZone: String!
     riskRewardRatio: Int!
     note: String
+    renderAs: NoteFormat = HTML
+  }
+
+  type SharedTradingPlan {
+    id: ID!
+    originalPlanId: ID!
+    sharedByUserId: ID!
+    visibility: PlanVisibility!
+    viewed: Boolean!
+    expiresAt: DateTime!
+    createdAt: DateTime!
+    plan: TradingPlan
+  }
+
+  type SharedTradingPlanResponse {
+    success: Boolean!
+    message: String!
+    sharedPlan: SharedTradingPlan
   }
 
   type TradingPlanResponse {
     success: Boolean!
     message: String!
+    plan: TradingPlan
+  }
+
+  type Query {
+    getTradingPlan: TradingPlanResponse!
+    getSharedTradingPlan(id: ID!): SharedTradingPlanResponse!
   }
 
   type Mutation {
     createTradingPlan(input: TradingPlanInput!): TradingPlanResponse!
+    updateTradingPlan(input: TradingPlanInput!): TradingPlanResponse!
+    shareTradingPlan(visibility: PlanVisibility!): SharedTradingPlanResponse!
   }
 `;
 
+// === TypeScript Interfaces ===
+export type NoteFormat = "MARKDOWN" | "HTML" | "JSON";
+
+export interface NoteContent {
+  raw: string;
+  html: string;
+  format: NoteFormat;
+}
+
 export interface CreateTradingPlanInput {
-  tradingStyle: string; // e.g., "swingTrading"
-  tradingSessions: string[]; // e.g., ["asian"]
-  timeZone: string; // e.g., "America/New_York"
-  riskRewardRatio: number; // e.g., 2
-  note: string;
-  createdAt: Date;
-  updatedAt: Date;
+  tradingStyle: string;
+  tradingSessions: string[];
+  timeZone: string;
+  riskRewardRatio: number;
+  note?: string;
+  renderAs?: NoteFormat;
 }
