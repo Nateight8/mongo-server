@@ -1,21 +1,17 @@
-declare module 'connect-pg-simple' {
-  import { Store, SessionData } from 'express-session';
-  import { Pool, PoolConfig } from 'pg';
+import { Store } from 'express-session';
+import { Pool } from 'pg';
 
-  function pgSession(options?: {
-    pool?: Pool;
-    pgPromise?: any;
-    tableName?: string;
-    schemaName?: string;
-    pruneSessionInterval?: number | false;
-    pruneSessionRandomizedInterval?: boolean;
-    ttl?: number;
-    disableTouch?: boolean;
-    createTableIfMissing?: boolean;
-    errorLog?: (message: string, error: Error) => void;
-  }): (session: any) => new () => Store & {
-    pruneSessions(): Promise<void>;
-  };
+declare function pgConnect(session: any): new (options: {
+  pool: Pool;
+  tableName?: string;
+  schemaName?: string;
+  pruneSessionInterval?: number | false;
+  pruneSessionRandomizedInterval?: boolean;
+  ttl?: number;
+  disableTouch?: boolean;
+  createTableIfMissing?: boolean;
+}) => Store & {
+  pruneSessions(): Promise<void>;
+};
 
-  export = pgSession;
-}
+export = pgConnect;
