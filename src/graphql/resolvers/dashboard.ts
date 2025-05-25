@@ -1,3 +1,4 @@
+import { journalingNoteTemplates } from "@/db/schema/journal.js";
 import { tradingPlans } from "@/db/schema/plan.js";
 import { GraphqlContext } from "@/types/types.utils.js";
 import { eq } from "drizzle-orm";
@@ -105,6 +106,18 @@ export const dashboardResolvers = {
           });
         }
 
+        const [template] = await db
+          .select()
+          .from(journalingNoteTemplates)
+          .where(eq(journalingNoteTemplates.userId, user.id))
+          .limit(1);
+
+        if (!template) {
+          throw new GraphQLError("Journal template not found", {
+            extensions: { code: "NOT_FOUND" },
+          });
+        }
+
         //mock return for now
         return {
           portfolioOverview: {
@@ -145,6 +158,7 @@ export const dashboardResolvers = {
           },
           recentTrades: mockTrades,
           tradingPlan: plan,
+          journalTemplate: template,
         };
       } catch (error) {
         console.error("Error fetching trading plan:", error);

@@ -6,8 +6,10 @@ import {
   jsonb,
   timestamp,
   boolean,
+  text,
 } from "drizzle-orm/pg-core";
 import { tradingAccounts } from "./account.js";
+import { users } from "./auth.js";
 
 export const journals = pgTable("journals", {
   id: uuid("id").defaultRandom().primaryKey(),
@@ -61,3 +63,24 @@ export const journals = pgTable("journals", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
+
+export const journalingNoteTemplates = pgTable("journaling_note_templates", {
+  id: uuid("id").defaultRandom().primaryKey(),
+
+  // Reference to the user who created the template
+  userId: text("user_id")
+    .notNull()
+    .references(() => users.id, { onDelete: "cascade" }),
+
+  // Template content (rich text using TipTap JSON)
+  note: jsonb("note").notNull(),
+
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export type JournalingNoteTemplate =
+  typeof journalingNoteTemplates.$inferSelect;
+export type NewJournalingNoteTemplate =
+  typeof journalingNoteTemplates.$inferInsert;

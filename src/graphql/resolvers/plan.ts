@@ -14,6 +14,8 @@ import { generateTradingPlanTemplate } from "../../lib/templates/trading-plan.js
 import { sharedTradingPlans, tradingPlans } from "@/db/schema/plan.js";
 import { users } from "@/db/schema/auth.js";
 import { createEmptyNote, formatNote } from "@/lib/templates/util.js";
+import { journalingNoteTemplates, journals } from "@/db/schema/journal.js";
+import { generateJournalNoteTemplate } from "@/lib/templates/journaling-note.js";
 
 // Enhanced formatTradingPlanNote function
 export const formatTradingPlanNote = async (
@@ -206,7 +208,7 @@ export const planResolvers = {
           );
         }
 
-        // Format the note based on the requested format
+        // Format the trading plan note based on the requested format
         const noteContent =
           input.note === "" ? generateTradingPlanTemplate() : input.note || "";
         const renderAs = input.renderAs || "HTML";
@@ -214,6 +216,14 @@ export const planResolvers = {
           noteContent,
           renderAs
         );
+
+        const journalNoteTemplate = generateJournalNoteTemplate();
+        const formattedJournalNoteTemplate = await formatTradingPlanNote(
+          journalNoteTemplate,
+          renderAs
+        );
+
+        // Format the journal note based on the requested format
 
         const [newPlan] = await db
           .insert(tradingPlans)
@@ -227,6 +237,11 @@ export const planResolvers = {
             isOwner: false,
           })
           .returning();
+
+        await db.insert(journalingNoteTemplates).values({
+          userId: user.id,
+          note: formattedJournalNoteTemplate,
+        });
 
         // Update user onboarding status
         await db
@@ -283,7 +298,10 @@ export const planResolvers = {
         let formattedNote = existingPlan.note as NoteContent;
         if (input.note !== undefined) {
           const renderAs = input.renderAs || "HTML";
-          formattedNote = await formatTradingPlanNote(input.note || "", renderAs);
+          formattedNote = await formatTradingPlanNote(
+            input.note || "",
+            renderAs
+          );
         }
 
         const [updatedPlan] = await db
@@ -391,6 +409,63 @@ export const planResolvers = {
           throw error;
         }
         throw new GraphQLError("Failed to share trading plan", {
+          extensions: { code: "INTERNAL_SERVER_ERROR" },
+        });
+      }
+    },
+
+    updateTradingPlanNote: async (
+      _: any,
+      { note }: { note: any },
+      ctx: GraphqlContext
+    ) => {
+      const { db, user } = ctx;
+
+      if (!user?.id) {
+        throw new GraphQLError("Not authenticated", {
+          extensions: { code: "UNAUTHORIZED" },
+        });
+      }
+
+      try {
+        // Format the note based on the requested format
+        const formattedNote = await formatTradingPlanNote(note, "HTML");
+
+        // Check if the user already has a trading plan
+        const [existingPlan] = await db
+          .select()
+          .from(tradingPlans)
+          .where(eq(tradingPlans.userId, user.id))
+          .limit(1);
+
+        if (!existingPlan) {
+          throw new GraphQLError("Trading plan not found", {
+            extensions: { code: "NOT_FOUND" },
+          });
+        }
+
+        // Update the note field and set isOwner to true if it's the first update
+        await db
+          .update(tradingPlans)
+          .set({
+            note: formattedNote,
+            isOwner: true,  // This will set isOwner to true on first update
+            updatedAt: new Date(),
+          })
+          .where(eq(tradingPlans.id, existingPlan.id));
+
+        return {
+          success: true,
+          message: "Trading plan note updated successfully",
+        };
+      } catch (error) {
+        console.error("Error updating trading plan note:", error);
+
+        if (error instanceof GraphQLError) {
+          throw error;
+        }
+
+        throw new GraphQLError("Failed to update trading plan note", {
           extensions: { code: "INTERNAL_SERVER_ERROR" },
         });
       }

@@ -63,7 +63,6 @@ export const planTypeDefs = gql`
   type TradingPlanResponse {
     success: Boolean!
     message: String!
-    plan: TradingPlan
   }
 
   type Query {
@@ -75,6 +74,7 @@ export const planTypeDefs = gql`
     createTradingPlan(input: TradingPlanInput!): TradingPlanResponse!
     updateTradingPlan(input: TradingPlanInput!): TradingPlanResponse!
     shareTradingPlan(visibility: PlanVisibility!): SharedTradingPlanResponse!
+    updateTradingPlanNote(note: JSON!): TradingPlanResponse!
   }
 `;
 

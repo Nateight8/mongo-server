@@ -4,6 +4,13 @@ export const journalTypeDefs = gql`
   scalar JSON
   scalar DateTime
 
+  type JournalingNoteTemplate {
+    id: ID!
+    note: NoteContent!
+    createdAt: DateTime!
+    updatedAt: DateTime!
+  }
+
   type Journal {
     id: ID!
 
@@ -92,11 +99,16 @@ export const journalTypeDefs = gql`
   type Mutation {
     createJournal(input: CreateJournalInput!): JournalResponse!
     updateJournal(input: UpdateJournalInput!): JournalResponse!
+
+    # Update or create the user's journal template
+    updateJournalTemplate(note: JSON!): JournalResponse!
   }
 
   type Query {
     getJournal(id: ID!): Journal
     getJournalsByAccount(accountId: ID!): [Journal!]!
     getLoggedJournals: [Journal!]!
+
+    # Get the user's journal template
   }
 `;

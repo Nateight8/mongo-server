@@ -1,9 +1,12 @@
 import { GraphQLError } from "graphql";
 import type { GraphqlContext } from "../../types/types.utils.js";
 import { db } from "../../db/index.js";
-import { journals, tradingAccounts } from "../../db/schema/index.js";
 import { and, eq, inArray } from "drizzle-orm";
 import type { InferSelectModel } from "drizzle-orm";
+import { tradingAccounts } from "../../db/schema/account.js";
+import { journalingNoteTemplates } from "../../db/schema/journal.js";
+import { journals } from "../../db/schema/journal.js";
+import { formatTradingPlanNote } from "./plan.js";
 
 type Journal = InferSelectModel<typeof journals>;
 
@@ -272,6 +275,72 @@ export const journalResolvers = {
             extensions: { code: "INTERNAL_SERVER_ERROR" },
           }
         );
+      }
+    },
+
+    updateJournalTemplate: async (
+      _: any,
+      { note }: { note: any },
+      ctx: GraphqlContext
+    ) => {
+      const { user } = ctx;
+
+      if (!user?.id) {
+        throw new GraphQLError("Not authenticated", {
+          extensions: { code: "UNAUTHORIZED" },
+        });
+      }
+
+      try {
+        // Format the note based on the requested format
+        const formattedNote = await formatTradingPlanNote(note, "HTML");
+
+        // Check if the user already has a journal template
+        const [existingTemplate] = await db
+          .select()
+          .from(journalingNoteTemplates)
+          .where(eq(journalingNoteTemplates.userId, user.id))
+          .limit(1);
+
+        let result;
+
+        if (existingTemplate) {
+          // Update existing template
+          [result] = await db
+            .update(journalingNoteTemplates)
+            .set({
+              note: formattedNote,
+              updatedAt: new Date(),
+            })
+            .where(eq(journalingNoteTemplates.id, existingTemplate.id))
+            .returning();
+        } else {
+          // Create new template
+          [result] = await db
+            .insert(journalingNoteTemplates)
+            .values({
+              userId: user.id,
+              note: formattedNote,
+            })
+            .returning();
+
+          //update journal owner
+        }
+
+        return {
+          success: true,
+          message: "Journal template updated successfully",
+        };
+      } catch (error) {
+        console.error("Error updating journal template:", error);
+
+        if (error instanceof GraphQLError) {
+          throw error;
+        }
+
+        throw new GraphQLError("Failed to update journal template", {
+          extensions: { code: "INTERNAL_SERVER_ERROR" },
+        });
       }
     },
   },
