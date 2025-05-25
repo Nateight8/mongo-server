@@ -17,6 +17,8 @@ import { setupPassport } from "./auth/passport.js";
 import { registerAuthRoutes } from "./auth/routes.js";
 import passport from "passport";
 import session from "express-session";
+import pgSession from 'connect-pg-simple';
+import { Pool } from 'pg';
 import "dotenv/config";
 
 interface MyContext {
@@ -117,7 +119,34 @@ const httpServer = http.createServer(app);
 // --- Auth setup ---
 setupPassport();
 
-// Session configuration
+// Session store configuration
+let sessionStore: any;
+
+if (isProduction) {
+  // In production, use PostgreSQL for session storage
+  const pgSession = require('connect-pg-simple')(session);
+  
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+  
+  sessionStore = new pgSession({
+    pool: pool,
+    tableName: 'user_sessions',
+    createTableIfMissing: true,
+    pruneSessionInterval: 60 * 60, // Prune expired sessions every hour
+  });
+  
+  console.log('Using PostgreSQL for session storage');
+} else {
+  // In development, use memory store (not for production)
+  console.warn('Using MemoryStore for sessions - not suitable for production');
+}
+
+// Cookie domain configuration
 const getCookieDomain = () => {
   // In development, don't set domain
   if (!isProduction) {
@@ -180,17 +209,14 @@ const sessionConfig: session.SessionOptions = {
   saveUninitialized: false,
   name: "tradz.sid", // Custom session cookie name
   proxy: isProduction, // Trust the reverse proxy in production
+  store: sessionStore, // Use the configured session store
   cookie: {
     httpOnly: true,
     secure: isProduction, // true in production (HTTPS)
     sameSite: isProduction ? "none" : "lax", // Required for cross-site cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
     domain: cookieDomain,
-  },
-  // Add store if you're using a session store in production
-  // store: isProduction ? new (require('connect-pg-simple')(session))() : undefined,
-  // Recommended to use a session store in production
-  // store: new (require('connect-pg-simple')(session))()
+  }
 };
 
 // Trust first proxy in production

@@ -7,7 +7,7 @@ import {
 import "dotenv/config";
 import { db } from "../db/index.js";
 
-import { eq, and } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { Snowflake } from "@theinternetfolks/snowflake";
 
 import { users } from "../db/schema/auth.js";
