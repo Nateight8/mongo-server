@@ -9,7 +9,7 @@ import { useServer } from 'graphql-ws/lib/use/ws';
 import { makeExecutableSchema } from '@graphql-tools/schema';
 import { PubSub } from 'graphql-subscriptions';
 import session from 'express-session';
-import pgSession from 'connect-pg-simple';
+import pgSession = require('connect-pg-simple');
 import type { PoolConfig } from 'pg';
 import { Pool } from 'pg';
 import { setupPassport } from './auth/passport.js';
@@ -131,15 +131,15 @@ if (isProduction) {
       ssl: isProduction ? { rejectUnauthorized: false } : false
     });
     
-    // Create the session store with proper typing
-    const PgStore = pgSession(session);
-    // Create the session store instance with type assertion
-    sessionStore = new (PgStore as any)({
+    // Create the session store with type assertion
+    const PgStore = (pgSession as any)(session);
+    // Create the session store instance
+    sessionStore = new PgStore({
       pool: pool,
       tableName: 'user_sessions',
       createTableIfMissing: true,
       pruneSessionInterval: 60 * 60, // Prune expired sessions every hour
-    }) as session.Store;
+    });
     
     console.log('Using PostgreSQL for session storage');
   } catch (error) {
