@@ -1,25 +1,27 @@
-import { ApolloServer } from "@apollo/server";
-import { expressMiddleware } from "@apollo/server/express4";
-import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
-import express from "express";
-import http from "http";
-import cors from "cors";
-import resolvers from "./graphql/resolvers/index.js";
-import typeDefs from "./graphql/typeDefs/index.js";
-import { db } from "./db/index.js";
-import { PubSub } from "graphql-subscriptions";
-import { makeExecutableSchema } from "@graphql-tools/schema";
-import { WebSocketServer } from "ws";
-import { useServer } from "graphql-ws/lib/use/ws";
-import type { CorsOptions, CorsRequest } from "cors";
-// --- Modular auth imports ---
-import { setupPassport } from "./auth/passport.js";
-import { registerAuthRoutes } from "./auth/routes.js";
-import passport from "passport";
-import session from "express-session";
-import pgSession from 'connect-pg-simple';
+import { ApolloServer } from '@apollo/server';
+import { expressMiddleware } from '@apollo/server/express4';
+import { ApolloServerPluginDrainHttpServer } from '@apollo/server/plugin/drainHttpServer';
+import express, { type Request, Response, NextFunction } from 'express';
+import cors, { type CorsOptions } from 'cors';
+import { createServer, type Server as HttpServer } from 'http';
+import { WebSocketServer } from 'ws';
+import { useServer } from 'graphql-ws/lib/use/ws';
+import { makeExecutableSchema } from '@graphql-tools/schema';
+import { PubSub } from 'graphql-subscriptions';
+import session from 'express-session';
+import pgConnect from 'connect-pg-simple';
+import type { PoolConfig } from 'pg';
 import { Pool } from 'pg';
-import "dotenv/config";
+import { setupPassport } from './auth/passport.js';
+import { registerAuthRoutes } from './auth/routes.js';
+import typeDefs from './graphql/typeDefs/index.js';
+import resolvers from './graphql/resolvers/index.js';
+import { db } from './db/index.js';
+import passport from 'passport';
+import cookieParser from 'cookie-parser';
+import 'dotenv/config';
+
+type CorsRequest = Request & { origin?: string };
 
 interface MyContext {
   token?: String;
@@ -111,36 +113,39 @@ if (isProduction) {
 }
 
 // Add cookie parser middleware
-import cookieParser from "cookie-parser";
 app.use(cookieParser());
 
-const httpServer = http.createServer(app);
+const httpServer = createServer(app);
 
 // --- Auth setup ---
 setupPassport();
 
 // Session store configuration
-let sessionStore: any;
+let sessionStore: session.Store | undefined;
 
 if (isProduction) {
-  // In production, use PostgreSQL for session storage
-  const pgSession = require('connect-pg-simple')(session);
-  
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    ssl: {
-      rejectUnauthorized: false
-    }
-  });
-  
-  sessionStore = new pgSession({
-    pool: pool,
-    tableName: 'user_sessions',
-    createTableIfMissing: true,
-    pruneSessionInterval: 60 * 60, // Prune expired sessions every hour
-  });
-  
-  console.log('Using PostgreSQL for session storage');
+  try {
+    // In production, use PostgreSQL for session storage
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: isProduction ? { rejectUnauthorized: false } : false
+    });
+    
+    // Create the session store with proper typing
+    const PgStore = pgConnect(session);
+    sessionStore = new PgStore({
+      pool: pool,
+      tableName: 'user_sessions',
+      createTableIfMissing: true,
+      pruneSessionInterval: 60 * 60, // Prune expired sessions every hour
+    });
+    
+    console.log('Using PostgreSQL for session storage');
+  } catch (error) {
+    console.error('Failed to initialize PostgreSQL session store:', error);
+    // Fall back to memory store in case of error
+    console.warn('Falling back to MemoryStore due to PostgreSQL initialization error');
+  }
 } else {
   // In development, use memory store (not for production)
   console.warn('Using MemoryStore for sessions - not suitable for production');
