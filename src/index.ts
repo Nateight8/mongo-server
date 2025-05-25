@@ -119,40 +119,60 @@ setupPassport();
 
 // Session configuration
 const getCookieDomain = () => {
-  if (!isProduction) return undefined; // No domain in development
+  // In development, don't set domain
+  if (!isProduction) {
+    console.log('Running in development mode - not setting cookie domain');
+    return undefined;
+  }
   
   // If COOKIE_DOMAIN is explicitly set, use it
   if (process.env.COOKIE_DOMAIN) {
+    console.log('Using COOKIE_DOMAIN from environment:', process.env.COOKIE_DOMAIN);
     return process.env.COOKIE_DOMAIN;
   }
   
   try {
-    // Extract domain from frontend URL
+    console.log('Frontend URL:', frontendUrl);
     const url = new URL(frontendUrl);
     const hostname = url.hostname;
     
+    console.log('Extracted hostname:', hostname);
+    
     // For IP addresses, return undefined (no domain)
     if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname)) {
+      console.log('IP address detected, not setting domain');
       return undefined;
     }
     
     // For localhost, return undefined
-    if (hostname === 'localhost') {
+    if (hostname === 'localhost' || hostname.endsWith('.localhost')) {
+      console.log('Localhost detected, not setting domain');
       return undefined;
     }
     
     // For production, use the domain without subdomains
     const parts = hostname.split('.');
+    let domain;
+    
     if (parts.length > 2) {
-      return `.${parts.slice(-2).join('.')}`; // Use main domain and TLD
+      // For domains like sub.example.com, use .example.com
+      domain = `.${parts.slice(-2).join('.')}`;
+    } else {
+      // For domains like example.com
+      domain = hostname;
     }
     
-    return hostname;
+    console.log('Determined cookie domain:', domain);
+    return domain;
   } catch (e) {
     console.error('Error determining cookie domain:', e);
     return undefined;
   }
 };
+
+// Get the cookie domain
+const cookieDomain = getCookieDomain();
+console.log('Final cookie domain:', cookieDomain);
 
 const sessionConfig: session.SessionOptions = {
   secret: process.env.SESSION_SECRET || "supersecret",
@@ -165,7 +185,7 @@ const sessionConfig: session.SessionOptions = {
     secure: isProduction, // true in production (HTTPS)
     sameSite: isProduction ? "none" : "lax", // Required for cross-site cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
-    domain: getCookieDomain(),
+    domain: cookieDomain,
   },
   // Add store if you're using a session store in production
   // store: isProduction ? new (require('connect-pg-simple')(session))() : undefined,
