@@ -16,36 +16,21 @@ import { users } from "../db/schema/auth.js";
 // type WhereClause = (users: UserTable) => ReturnType<typeof eq>;
 
 export function setupPassport() {
-  // Get the base URL from environment or use localhost for development
-  const isProduction = process.env.NODE_ENV === 'production';
-  const protocol = isProduction ? 'https' : 'http';
-  const host = process.env.HOST || 'localhost:4000';
-  const defaultCallbackURL = `${protocol}://${host}/api/auth/google/callback`;
-  
-  // Use AUTH_GOOGLE_CALLBACK_URL from .env or fall back to default
-  const callbackURL = process.env.AUTH_GOOGLE_CALLBACK_URL || defaultCallbackURL;
-
   // Debug log to check environment variables
   console.log("Google OAuth Config:", {
     clientID: process.env.AUTH_GOOGLE_ID ? "Set" : "Not Set",
     clientSecret: process.env.AUTH_GOOGLE_SECRET ? "Set" : "Not Set",
-    callbackURL,
-    isProduction,
-    host,
-    NODE_ENV: process.env.NODE_ENV,
-    allEnvVars: Object.keys(process.env).filter(key => key.includes('GOOGLE') || key.includes('AUTH_'))
+    callbackURL: process.env.GOOGLE_CALLBACK_URL,
   });
-
-  if (!process.env.AUTH_GOOGLE_ID || !process.env.AUTH_GOOGLE_SECRET) {
-    console.error('Missing required Google OAuth credentials');
-  }
 
   passport.use(
     new GoogleStrategy(
       {
         clientID: process.env.AUTH_GOOGLE_ID || "",
         clientSecret: process.env.AUTH_GOOGLE_SECRET || "",
-        callbackURL,
+        callbackURL:
+          process.env.GOOGLE_CALLBACK_URL ||
+          "http://localhost:4000/api/auth/google/callback",
       },
       async (
         accessToken: string,
