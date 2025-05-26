@@ -123,64 +123,55 @@ setupPassport();
 // Session store configuration
 let sessionStore: session.Store | undefined;
 
-if (isProduction) {
-  try {
-    // In production, use PostgreSQL for session storage
-    const pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: isProduction ? { rejectUnauthorized: false } : false
-    });
-    
-    // Check if the session table exists
-    const checkTableExists = async () => {
+const initializeSessionStore = async () => {
+  if (isProduction) {
+    try {
+      // In production, use PostgreSQL for session storage
+      const pool = new Pool({
+        connectionString: process.env.DATABASE_URL,
+        ssl: isProduction ? { rejectUnauthorized: false } : false
+      });
+      
+      // Create the session store with type assertion
+      const PgStore = (pgSession as any)(session);
+      
+      // Create the session store instance
+      const store = new PgStore({
+        pool: pool,
+        tableName: 'user_sessions',
+        createTableIfMissing: true, // Let connect-pg-simple handle table creation
+        pruneSessionInterval: 60 * 60, // Prune expired sessions every hour
+      });
+      
+      // Test the connection and table creation
       try {
-        await pool.query('SELECT 1 FROM user_sessions LIMIT 1');
-        console.log('Session table already exists');
-        return true;
+        // This will trigger the table creation if it doesn't exist
+        await new Promise<void>((resolve, reject) => {
+          store.on('connect', () => {
+            console.log('Successfully connected to PostgreSQL session store');
+            resolve();
+          });
+          store.on('error', (err: any) => {
+            console.error('Session store error:', err);
+            reject(err);
+          });
+        });
+        
+        sessionStore = store;
+        console.log('Using PostgreSQL for session storage');
       } catch (err) {
-        console.log('Session table does not exist or error checking:', err);
-        return false;
+        console.error('Error initializing session store:', err);
+        throw err;
       }
-    };
-
-    // Create the session store with type assertion
-    const PgStore = (pgSession as any)(session);
-    
-    // Create the session store instance
-    sessionStore = new PgStore({
-      pool: pool,
-      tableName: 'user_sessions',
-      createTableIfMissing: false, // Set to false since we're checking manually
-      pruneSessionInterval: 60 * 60, // Prune expired sessions every hour
-    });
-
-    // Check if table exists, if not, create it
-    const tableExists = await checkTableExists();
-    if (!tableExists) {
-      console.log('Creating session table...');
-      try {
-        await (sessionStore as any).createTableIfNotExists();
-        console.log('Session table created successfully');
-      } catch (createError) {
-        // If the error is about the table already existing, we can ignore it
-        if (!(createError as any).message?.includes('already exists')) {
-          console.error('Error creating session table:', createError);
-          throw createError;
-        }
-        console.log('Session table already exists (from error check)');
-      }
+    } catch (error) {
+      console.error('Failed to initialize PostgreSQL session store:', error);
+      throw error; // Don't fall back to MemoryStore in production
     }
-    
-    console.log('Using PostgreSQL for session storage');
-  } catch (error) {
-    console.error('Failed to initialize PostgreSQL session store:', error);
-    // Fall back to memory store in case of error
-    console.warn('Falling back to MemoryStore due to PostgreSQL initialization error');
+  } else {
+    // In development, use memory store
+    console.warn('Using MemoryStore for sessions - not suitable for production');
   }
-} else {
-  // In development, use memory store (not for production)
-  console.warn('Using MemoryStore for sessions - not suitable for production');
-}
+};
 
 // Cookie domain configuration
 const getCookieDomain = () => {
@@ -280,9 +271,82 @@ registerAuthRoutes(app);
 // Create a PubSub instance
 const pubsub = new PubSub();
 
+// Initialize the application
+const initializeApp = async () => {
+  try {
+    // Initialize session store
+    await initializeSessionStore();
+    
+    // Apply session middleware
+    app.use(session({
+      ...sessionConfig,
+      store: sessionStore
+    }));
+
+    // Initialize Passport and session
+    app.use(passport.initialize());
+    app.use(passport.session());
+
+    // Log session info for debugging
+    app.use((req, res, next) => {
+      console.log('Session ID:', req.sessionID);
+      console.log('Session data:', req.session);
+      console.log('User authenticated:', req.isAuthenticated());
+      next();
+    });
+
+    // Register auth routes
+    registerAuthRoutes(app);
+
+    // Configure GraphQL endpoint
+    await configureGraphQL();
+
+    // Error handling middleware
+    app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+      console.error('Unhandled error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Failed to initialize application:', error);
+    throw error;
+  }
+};
+
 // Start the server
-httpServer.listen({ port: 4000 }, () => {
-  console.log(`🚀 Server ready at http://localhost:4000`);
+const startServer = async () => {
+  try {
+    await initializeApp();
+    
+    const port = process.env.PORT || 4000;
+    await new Promise<void>((resolve) => {
+      httpServer.listen({ port }, () => {
+        console.log(`🚀 Server ready at http://localhost:${port}`);
+        resolve();
+      });
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  process.exit(1);
+});
+
+// Start the server
+startServer().catch((error) => {
+  console.error('Fatal error during server startup:', error);
+  process.exit(1);
 });
 
 // Create executable schema
@@ -313,9 +377,10 @@ const serverCleanup = useServer(
 // Create Apollo Server
 const server = new ApolloServer<MyContext>({
   schema,
-  csrfPrevention: true,
   plugins: [
+    // Proper shutdown for the HTTP server.
     ApolloServerPluginDrainHttpServer({ httpServer }),
+    // Proper shutdown for the WebSocket server.
     {
       async serverWillStart() {
         return {
@@ -328,43 +393,24 @@ const server = new ApolloServer<MyContext>({
   ],
 });
 
-// Only apply CORS, express.json, etc. to /graphql
-async function startServer() {
+// Configure GraphQL endpoint
+const configureGraphQL = async () => {
   await server.start();
-
+  
   app.use(
     "/graphql",
     cors(corsOptions),
     express.json(),
     expressMiddleware(server, {
-      context: async ({ req, res }) => {
-        console.log("[GraphQL context] req.session:", req.session);
-        console.log("[GraphQL context] req.user:", req.user);
-
-        // Get the user from the session
-        const user = req.user || null;
-
-        return {
-          db,
-          user, // Pass the user object directly
-          pubsub,
-          req,
-          res,
-        };
-      },
+      context: async ({ req, res }) => ({
+        db,
+        user: req.user || null,
+        pubsub,
+        req,
+        res,
+      }),
     })
   );
-
-  const port = process.env.PORT || 4000;
-  await new Promise<void>((resolve) => httpServer.listen({ port }, resolve));
-
-  const serverUrl = isProduction
-    ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME || `localhost:${port}`}`
-    : `http://localhost:${port}`;
-  console.log(`🚀 Server ready at ${serverUrl}/graphql`);
-  console.log(
-    `🔌 WebSocket server ready at ${serverUrl.replace("http", "ws")}/graphql/ws`
-  );
-}
+};
 
 startServer();
