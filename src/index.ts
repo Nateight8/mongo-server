@@ -33,14 +33,22 @@ const isProduction = process.env.NODE_ENV === "production";
 
 // --- CORS Configuration ---
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
+const serverUrl = process.env.RENDER_EXTERNAL_URL || 
+  (process.env.RENDER_INSTANCE_ID ? 
+    `https://${process.env.RENDER_INSTANCE_ID}.onrender.com` : 
+    'http://localhost:4000');
+
 const allowedOrigins = [
   frontendUrl,
+  serverUrl,
   "http://localhost:3000",
+  "http://localhost:4000",
   "https://studio.apollographql.com",
   "https://journal-gamma-two.vercel.app",
-].filter(Boolean);
+];
 
 console.log("Allowed CORS origins:", allowedOrigins);
+console.log("Server URL:", serverUrl);
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
@@ -93,8 +101,8 @@ const sessionConfig: session.SessionOptions = {
     sameSite: isProduction ? "none" : "lax", // Required for cross-site cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
     domain: isProduction
-      ? process.env.COOKIE_DOMAIN ||
-        new URL(frontendUrl).hostname.replace("www.", "")
+      ? process.env.COOKIE_DOMAIN || 
+        new URL(process.env.RENDER_EXTERNAL_URL || `http://${process.env.RENDER_INSTANCE_ID}.onrender.com`).hostname
       : "localhost",
   },
   // Recommended to use a session store in production
