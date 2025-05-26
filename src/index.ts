@@ -112,13 +112,26 @@ const sessionConfig: session.SessionOptions = {
     path: "/",
     domain: isProduction ? ".tradz.app" : undefined, // Use your domain in production
   },
-  // Use a store in production for better session management
-  store: isProduction
-    ? new (require("connect-mongo")(session))({
+  // Store will be set in the async initialization
+  store: undefined,
+};
+
+// Initialize session store if in production
+const initializeSessionStore = async () => {
+  if (isProduction) {
+    try {
+      const { default: MongoStore } = await import('connect-mongo');
+      sessionConfig.store = MongoStore.create({
         mongoUrl: process.env.DATABASE_URL,
         ttl: 7 * 24 * 60 * 60, // 1 week in seconds
-      })
-    : undefined,
+      });
+      console.log('Session store initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize session store:', error);
+      throw error;
+    }
+  }
+  return true;
 };
 
 console.log("Session config:", {
@@ -232,9 +245,22 @@ async function startServer() {
     }
     return httpServer;
   }
+  
+  try {
+    await initializeSessionStore();
+    
+    // Initialize session middleware
+    app.use(session(sessionConfig));
+    app.use(passport.initialize());
+    app.use(passport.session());
+    
+    console.log("Session middleware initialized");
+  } catch (error) {
+    console.error("Failed to initialize session store:", error);
+    throw error;
+  }
 
   try {
-    serverStarting = true;
     console.log("Starting server...");
     console.log("Initializing application...");
 
