@@ -20,6 +20,7 @@ import session from "express-session";
 import "dotenv/config";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import cookieParser from "cookie-parser";
 
 // ES module equivalent of __filename and __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -33,10 +34,11 @@ const isProduction = process.env.NODE_ENV === "production";
 
 // --- CORS Configuration ---
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-const serverUrl = process.env.RENDER_EXTERNAL_URL || 
-  (process.env.RENDER_INSTANCE_ID ? 
-    `https://${process.env.RENDER_INSTANCE_ID}.onrender.com` : 
-    'http://localhost:4000');
+const serverUrl =
+  process.env.RENDER_EXTERNAL_URL ||
+  (process.env.RENDER_INSTANCE_ID
+    ? `https://${process.env.RENDER_INSTANCE_ID}.onrender.com`
+    : "http://localhost:4000");
 
 const allowedOrigins = [
   frontendUrl,
@@ -49,6 +51,8 @@ const allowedOrigins = [
 
 console.log("Allowed CORS origins:", allowedOrigins);
 console.log("Server URL:", serverUrl);
+console.log("Frontend URL:", frontendUrl);
+console.log("Is Production:", isProduction);
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
@@ -70,6 +74,8 @@ const corsOptions: CorsOptions = {
   },
   credentials: true,
   optionsSuccessStatus: 200, // Some legacy browsers choke on 204
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
 };
 
 const app = express();
@@ -80,7 +86,6 @@ if (isProduction) {
 }
 
 // Add cookie parser middleware
-import cookieParser from "cookie-parser";
 app.use(cookieParser());
 
 const httpServer = http.createServer(app);
@@ -88,7 +93,7 @@ const httpServer = http.createServer(app);
 // --- Auth setup ---
 setupPassport();
 
-// Session configuration
+// FIXED Session configuration - removed domain restriction for cross-origin auth
 const sessionConfig: session.SessionOptions = {
   secret: process.env.SESSION_SECRET || "supersecret",
   resave: false,
@@ -100,18 +105,46 @@ const sessionConfig: session.SessionOptions = {
     secure: isProduction, // true in production (HTTPS)
     sameSite: isProduction ? "none" : "lax", // Required for cross-site cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
-    domain: isProduction
-      ? process.env.COOKIE_DOMAIN || 
-        new URL(process.env.RENDER_EXTERNAL_URL || `http://${process.env.RENDER_INSTANCE_ID}.onrender.com`).hostname
-      : "localhost",
+    // REMOVED domain restriction to allow cross-origin authentication
+    // domain: ... <- This was preventing auth from working
   },
   // Recommended to use a session store in production
   // store: new (require('connect-pg-simple')(session))()
 };
 
+console.log("Session config:", {
+  ...sessionConfig,
+  secret: "[REDACTED]",
+});
+
 app.use(session(sessionConfig));
 app.use(passport.initialize());
 app.use(passport.session());
+
+// Add session debug middleware
+app.use((req, res, next) => {
+  // Only log for auth-related routes to reduce noise
+  if (req.path.includes("/auth") || req.path.includes("/graphql")) {
+    console.log("[Session Debug] Path:", req.path);
+    console.log("[Session Debug] Session ID:", req.sessionID);
+    console.log("[Session Debug] Session exists:", !!req.session);
+    console.log(
+      "[Session Debug] Passport user ID:",
+      req.session?.passport?.user
+    );
+    console.log(
+      "[Session Debug] User object:",
+      req.user ? "Present" : "Not present"
+    );
+    console.log("[Session Debug] Is authenticated:", req.isAuthenticated?.());
+    console.log(
+      "[Session Debug] Cookies:",
+      req.headers.cookie ? "Present" : "Not present"
+    );
+  }
+  next();
+});
+
 registerAuthRoutes(app);
 
 // Create a PubSub instance
@@ -188,18 +221,48 @@ async function startServer() {
     await server.start();
     console.log("Apollo Server started");
 
-    // Apply GraphQL middleware
+    // Apply GraphQL middleware with enhanced debugging
     app.use(
       "/graphql",
       cors(corsOptions),
       express.json(),
       expressMiddleware(server, {
         context: async ({ req, res }) => {
-          console.log("[GraphQL context] Session ID:", req.sessionID);
+          console.log("[GraphQL Context] ===== REQUEST START =====");
+          console.log("[GraphQL Context] Session ID:", req.sessionID);
+          console.log("[GraphQL Context] Session exists:", !!req.session);
+          console.log("[GraphQL Context] Session data:", {
+            passport: req.session?.passport,
+            cookie: req.session?.cookie
+              ? {
+                  maxAge: req.session.cookie.maxAge,
+                  secure: req.session.cookie.secure,
+                  httpOnly: req.session.cookie.httpOnly,
+                  sameSite: req.session.cookie.sameSite,
+                }
+              : "No cookie config",
+          });
           console.log(
-            "[GraphQL context] User:",
-            req.user ? "Authenticated" : "Not authenticated"
+            "[GraphQL Context] User object:",
+            req.user
+              ? {
+                  id: req.user.id,
+                  name: req.user.name,
+                  email: req.user.email,
+                }
+              : "Not present"
           );
+          console.log(
+            "[GraphQL Context] Is authenticated:",
+            req.isAuthenticated?.()
+          );
+          console.log("[GraphQL Context] Request headers:", {
+            origin: req.headers.origin,
+            referer: req.headers.referer,
+            userAgent: req.headers["user-agent"]?.substring(0, 50) + "...",
+            cookie: req.headers.cookie ? "Present" : "Not present",
+          });
+          console.log("[GraphQL Context] ===== REQUEST END =====");
 
           return {
             db,
@@ -207,6 +270,7 @@ async function startServer() {
             pubsub,
             req,
             res,
+            isAuthenticated: req.isAuthenticated?.() || false,
           };
         },
       })
@@ -214,9 +278,41 @@ async function startServer() {
 
     // Health check endpoint
     app.get("/health", (req, res) => {
-      res
-        .status(200)
-        .json({ status: "ok", timestamp: new Date().toISOString() });
+      res.status(200).json({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        session: {
+          configured: !!req.session,
+          sessionId: req.sessionID,
+          authenticated: req.isAuthenticated?.() || false,
+        },
+      });
+    });
+
+    // Test endpoint to check session state
+    app.get("/auth/status", (req, res) => {
+      res.json({
+        sessionId: req.sessionID,
+        isAuthenticated: req.isAuthenticated?.() || false,
+        user: req.user
+          ? {
+              id: req.user.id,
+              name: req.user.name,
+              email: req.user.email,
+            }
+          : null,
+        session: {
+          passport: req.session?.passport,
+          cookie: req.session?.cookie
+            ? {
+                maxAge: req.session.cookie.maxAge,
+                secure: req.session.cookie.secure,
+                httpOnly: req.session.cookie.httpOnly,
+                sameSite: req.session.cookie.sameSite,
+              }
+            : null,
+        },
+      });
     });
 
     // Start the HTTP server only if not already listening
@@ -243,6 +339,7 @@ async function startServer() {
             )}/graphql/ws`
           );
           console.log(`🩺 Health check at ${serverUrl}/health`);
+          console.log(`🔐 Auth status at ${serverUrl}/auth/status`);
 
           serverStarted = true;
           serverStarting = false;
@@ -256,6 +353,15 @@ async function startServer() {
     }
 
     console.log("Application initialized successfully");
+    console.log("CORS origins:", allowedOrigins);
+    console.log("Session cookie config:", {
+      secure: sessionConfig.cookie?.secure,
+      sameSite: sessionConfig.cookie?.sameSite,
+      httpOnly: sessionConfig.cookie?.httpOnly,
+      maxAge: sessionConfig.cookie?.maxAge,
+      domain: sessionConfig.cookie?.domain || "Not set (good for cross-origin)",
+    });
+
     return httpServer;
   } catch (error) {
     console.error("Failed to start server:", error);
