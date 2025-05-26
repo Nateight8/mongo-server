@@ -18,6 +18,12 @@ import { registerAuthRoutes } from "./auth/routes.js";
 import passport from "passport";
 import session from "express-session";
 import "dotenv/config";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+
+// ES module equivalent of __filename and __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 
 interface MyContext {
   token?: String;
@@ -33,6 +39,8 @@ const allowedOrigins = [
   "https://studio.apollographql.com",
   "https://journal-gamma-two.vercel.app",
 ].filter(Boolean);
+
+console.log("Allowed CORS origins:", allowedOrigins);
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
@@ -144,43 +152,171 @@ const server = new ApolloServer<MyContext>({
   ],
 });
 
-// Only apply CORS, express.json, etc. to /graphql
+// Global flag to prevent multiple server starts
+let serverStarted = false;
+let serverStarting = false;
+
 async function startServer() {
-  await server.start();
+  // Prevent multiple server starts
+  if (serverStarted) {
+    console.log("Server already started, skipping...");
+    return httpServer;
+  }
 
-  app.use(
-    "/graphql",
-    cors(corsOptions),
-    express.json(),
-    expressMiddleware(server, {
-      context: async ({ req, res }) => {
-        console.log("[GraphQL context] req.session:", req.session);
-        console.log("[GraphQL context] req.user:", req.user);
+  if (serverStarting) {
+    console.log("Server is already starting, waiting...");
+    // Wait for the other startup to complete
+    while (serverStarting) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return httpServer;
+  }
 
-        // Get the user from the session
-        const user = req.user || null;
+  try {
+    serverStarting = true;
+    console.log("Starting server...");
+    console.log("Initializing application...");
 
-        return {
-          db,
-          user, // Pass the user object directly
-          pubsub,
-          req,
-          res,
-        };
-      },
-    })
-  );
+    await server.start();
+    console.log("Apollo Server started");
 
-  const port = process.env.PORT || 4000;
-  await new Promise<void>((resolve) => httpServer.listen({ port }, resolve));
+    // Apply GraphQL middleware
+    app.use(
+      "/graphql",
+      cors(corsOptions),
+      express.json(),
+      expressMiddleware(server, {
+        context: async ({ req, res }) => {
+          console.log("[GraphQL context] Session ID:", req.sessionID);
+          console.log(
+            "[GraphQL context] User:",
+            req.user ? "Authenticated" : "Not authenticated"
+          );
 
-  const serverUrl = isProduction
-    ? `https://${process.env.RENDER_EXTERNAL_HOSTNAME || `localhost:${port}`}`
-    : `http://localhost:${port}`;
-  console.log(`🚀 Server ready at ${serverUrl}/graphql`);
-  console.log(
-    `🔌 WebSocket server ready at ${serverUrl.replace("http", "ws")}/graphql/ws`
-  );
+          return {
+            db,
+            user: req.user || null,
+            pubsub,
+            req,
+            res,
+          };
+        },
+      })
+    );
+
+    // Health check endpoint
+    app.get("/health", (req, res) => {
+      res
+        .status(200)
+        .json({ status: "ok", timestamp: new Date().toISOString() });
+    });
+
+    // Start the HTTP server only if not already listening
+    if (!httpServer.listening) {
+      const port = process.env.PORT || 4000;
+      await new Promise<void>((resolve, reject) => {
+        httpServer.listen({ port }, (error?: Error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+
+          const serverUrl = isProduction
+            ? `https://${
+                process.env.RENDER_EXTERNAL_HOSTNAME || `localhost:${port}`
+              }`
+            : `http://localhost:${port}`;
+
+          console.log(`🚀 Server ready at ${serverUrl}/graphql`);
+          console.log(
+            `🔌 WebSocket ready at ${serverUrl.replace(
+              "http",
+              "ws"
+            )}/graphql/ws`
+          );
+          console.log(`🩺 Health check at ${serverUrl}/health`);
+
+          serverStarted = true;
+          serverStarting = false;
+          resolve();
+        });
+      });
+    } else {
+      console.log("HTTP server already listening");
+      serverStarted = true;
+      serverStarting = false;
+    }
+
+    console.log("Application initialized successfully");
+    return httpServer;
+  } catch (error) {
+    console.error("Failed to start server:", error);
+    serverStarting = false;
+    await stopServer();
+    throw error; // Re-throw instead of process.exit to allow proper error handling
+  }
 }
 
-startServer();
+// Stop the server gracefully
+async function stopServer() {
+  try {
+    console.log("Stopping server...");
+
+    // Close WebSocket server if it exists
+    if (serverCleanup) {
+      await serverCleanup.dispose();
+      console.log("WebSocket server closed");
+    }
+
+    // Close HTTP server if it's running
+    if (httpServer && httpServer.listening) {
+      await new Promise<void>((resolve) => {
+        httpServer.close(() => {
+          console.log("HTTP server closed");
+          resolve();
+        });
+      });
+    }
+
+    serverStarted = false;
+    serverStarting = false;
+    console.log("Server stopped");
+  } catch (error) {
+    console.error("Error during server shutdown:", error);
+    serverStarted = false;
+    serverStarting = false;
+  }
+}
+
+// Handle process termination
+process.on("SIGTERM", async () => {
+  console.log("Received SIGTERM signal");
+  await stopServer();
+  process.exit(0);
+});
+
+process.on("SIGINT", async () => {
+  console.log("Received SIGINT signal");
+  await stopServer();
+  process.exit(0);
+});
+
+process.on("uncaughtException", async (error) => {
+  console.error("Fatal error during server startup:", error);
+  await stopServer();
+  process.exit(1);
+});
+
+// ES Module way to check if this is the main module
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+
+// Start the server if this file is run directly
+if (isMainModule) {
+  startServer().catch((error) => {
+    console.error("Fatal error during server startup:", error);
+    process.exit(1);
+  });
+}
+
+// Export for testing or programmatic usage (ES module style)
+export { app, startServer, stopServer };
