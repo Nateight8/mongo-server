@@ -1,5 +1,5 @@
 import { GraphQLError } from "graphql";
-import { GraphqlContext } from "@/types/types.utils.js";
+import { GraphqlContext } from "../../types/types.utils.js";
 
 import { and, eq } from "drizzle-orm";
 

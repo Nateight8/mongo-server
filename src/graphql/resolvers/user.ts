@@ -1,5 +1,5 @@
 import { users } from "../../db/schema/auth.js";
-import { GraphqlContext } from "@/types/types.utils.js";
+import { GraphqlContext } from "../../types/types.utils.js";
 
 import { eq } from "drizzle-orm";
 import { GraphQLError } from "graphql";
@@ -29,7 +29,6 @@ export const userResolvers = {
           });
         }
 
-
         // Then get the user's accounts with required fields for TradingAccount type
         const userAccounts = await db
           .select({
@@ -47,7 +46,7 @@ export const userResolvers = {
             experienceLevel: tradingAccounts.experienceLevel,
             biggestChallenge: tradingAccounts.biggestChallenge,
             createdAt: tradingAccounts.createdAt,
-            updatedAt: tradingAccounts.updatedAt
+            updatedAt: tradingAccounts.updatedAt,
           })
           .from(tradingAccounts)
           .where(eq(tradingAccounts.userId, user.id));
@@ -55,7 +54,7 @@ export const userResolvers = {
         // Return user with accounts
         return {
           ...userData,
-          accounts: userAccounts
+          accounts: userAccounts,
         };
       } catch (error) {
         console.error("Error fetching user:", error);

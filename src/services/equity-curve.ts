@@ -1,4 +1,4 @@
-import { equityCurveData } from "@/lib/data.js";
+import { equityCurveData } from "../lib/data.js";
 
 export function getEquityCurve() {
   return equityCurveData;
