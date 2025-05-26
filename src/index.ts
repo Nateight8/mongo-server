@@ -34,48 +34,81 @@ const isProduction = process.env.NODE_ENV === "production";
 
 // --- CORS Configuration ---
 const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-const serverUrl =
-  process.env.RENDER_EXTERNAL_URL ||
-  (process.env.RENDER_INSTANCE_ID
-    ? `https://${process.env.RENDER_INSTANCE_ID}.onrender.com`
-    : "http://localhost:4000");
 
 const allowedOrigins = [
   frontendUrl,
-  serverUrl,
   "http://localhost:3000",
   "http://localhost:4000",
   "https://studio.apollographql.com",
   "https://journal-gamma-two.vercel.app",
+  "https://tradz-app-git-main-nateight8.vercel.app",
+  // Add other Vercel preview URLs if needed
 ];
 
-console.log("Allowed CORS origins:", allowedOrigins);
-console.log("Server URL:", serverUrl);
-console.log("Frontend URL:", frontendUrl);
-console.log("Is Production:", isProduction);
+// Add all subdomains of vercel.app and netlify.app for development
+const DEV_ALLOWED_DOMAINS = [
+  '.vercel.app',
+  '.netlify.app',
+  '.onrender.com'
+];
 
-const corsOptions: CorsOptions = {
+const corsOptions: cors.CorsOptions = {
   origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
+    console.log("CORS Origin check for:", origin);
 
-    if (
-      allowedOrigins.includes(origin) ||
-      allowedOrigins.some((allowed) =>
-        origin.endsWith(new URL(allowed).hostname)
-      )
-    ) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      console.log("No origin, allowing");
       return callback(null, true);
     }
 
-    const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
-    console.error(msg);
-    return callback(new Error(msg), false);
+    // Check if the origin is in the allowed list
+    if (allowedOrigins.includes(origin)) {
+      console.log("Origin allowed:", origin);
+      return callback(null, true);
+    }
+
+    // Check for subdomains in production
+    if (isProduction) {
+      // Allow all subdomains of tradz.app
+      const domainRegex = /^https?:\/\/([a-zA-Z0-9-]+\.)?tradz\.app(\/.*)?$/;
+      if (domainRegex.test(origin)) {
+        console.log("Subdomain allowed:", origin);
+        return callback(null, true);
+      }
+
+      // Check for development domains
+      const isDevDomain = DEV_ALLOWED_DOMAINS.some(domain => 
+        origin.endsWith(domain)
+      );
+      
+      if (isDevDomain) {
+        console.log("Development domain allowed:", origin);
+        return callback(null, true);
+      }
+    }
+
+    console.log("Origin not allowed:", origin);
+    return callback(new Error("Not allowed by CORS"));
   },
-  credentials: true,
+  credentials: true, // This is important for cookies
   optionsSuccessStatus: 200,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "HEAD"],
+  allowedHeaders: [
+    "Content-Type", 
+    "Authorization", 
+    "X-Requested-With", 
+    "X-Requested-By",
+    "Accept",
+    "Origin",
+    "Cookie",
+    "Set-Cookie"
+  ],
+  exposedHeaders: [
+    "Set-Cookie",
+    "Date",
+    "ETag"
+  ]
 };
 
 const app = express();
@@ -96,22 +129,38 @@ const httpServer = http.createServer(app);
 // --- Auth setup ---
 setupPassport();
 
-// FIXED Session configuration with proper cookie settings
+// Session configuration with enhanced security and cross-origin support
 const sessionConfig: session.SessionOptions = {
   secret: process.env.SESSION_SECRET || "supersecret",
-  resave: false,
+  resave: true, // Changed to true for better compatibility
   saveUninitialized: false,
   name: "tradz.sid",
-  proxy: isProduction,
+  proxy: true, // Trust the proxy in production
+  rolling: true, // Reset maxAge on every request
   cookie: {
     httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
+    secure: true, // Must be true for SameSite=None
+    sameSite: 'none', // Required for cross-site cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
-    // CRITICAL: Ensure partitioned is false for cross-site cookies
-    ...(isProduction && { partitioned: false }),
+    path: "/",
+    // No domain set to allow Vercel's domain to work
+    partitioned: true, // Enable Partitioned cookies for Chrome 109+
   },
+  // Use a store in production for better session management
+  store: isProduction
+    ? new (require("connect-mongo")(session))({
+        mongoUrl: process.env.DATABASE_URL,
+        ttl: 7 * 24 * 60 * 60, // 1 week in seconds
+        autoRemove: 'native',
+        autoRemoveInterval: 10, // Check every 10 minutes
+      })
+    : undefined,
 };
+
+// Trust first proxy in production
+if (isProduction) {
+  app.set('trust proxy', 1);
+}
 
 console.log("Session config:", {
   ...sessionConfig,
