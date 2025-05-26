@@ -278,6 +278,8 @@ const pubsub = new PubSub();
 // Initialize the application
 const initializeApp = async () => {
   try {
+    console.log('Initializing application...');
+    
     // Initialize session store
     await initializeSessionStore();
     
@@ -305,12 +307,18 @@ const initializeApp = async () => {
     // Configure GraphQL endpoint
     await configureGraphQL();
 
+    // Health check endpoint
+    app.get('/health', (req, res) => {
+      res.status(200).json({ status: 'ok' });
+    });
+
     // Error handling middleware
     app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
       console.error('Unhandled error:', err);
       res.status(500).json({ error: 'Internal server error' });
     });
 
+    console.log('Application initialized successfully');
     return true;
   } catch (error) {
     console.error('Failed to initialize application:', error);
@@ -321,18 +329,61 @@ const initializeApp = async () => {
 // Start the server
 const startServer = async () => {
   try {
+    console.log('Starting server...');
+    
     await initializeApp();
     
     const port = process.env.PORT || 4000;
-    await new Promise<void>((resolve) => {
+    
+    // Start the HTTP server
+    await new Promise<void>((resolve, reject) => {
+      httpServer.on('error', (error) => {
+        console.error('HTTP server error:', error);
+        reject(error);
+      });
+      
       httpServer.listen({ port }, () => {
-        console.log(`🚀 Server ready at http://localhost:${port}`);
+        const serverUrl = `http://localhost:${port}`;
+        console.log(`🚀 Server ready at ${serverUrl}`);
+        console.log(`🔌 GraphQL endpoint: ${serverUrl}/graphql`);
         resolve();
       });
     });
+    
+    return httpServer;
   } catch (error) {
     console.error('Failed to start server:', error);
-    process.exit(1);
+    // Ensure we clean up resources
+    await stopServer();
+    throw error;
+  }
+};
+
+// Stop the server and clean up resources
+const stopServer = async () => {
+  try {
+    console.log('Stopping server...');
+    
+    // Close the HTTP server
+    if (httpServer) {
+      await new Promise<void>((resolve) => {
+        httpServer.close(() => {
+          console.log('HTTP server closed');
+          resolve();
+        });
+      });
+    }
+    
+    // Close the database connection pool if using PostgreSQL
+    if (db && 'end' in db) {
+      await (db as any).end();
+      console.log('Database connection pool closed');
+    }
+    
+    console.log('Server stopped');
+  } catch (error) {
+    console.error('Error during server shutdown:', error);
+    throw error;
   }
 };
 
@@ -399,22 +450,36 @@ const server = new ApolloServer<MyContext>({
 
 // Configure GraphQL endpoint
 const configureGraphQL = async () => {
-  await server.start();
-  
-  app.use(
-    "/graphql",
-    cors(corsOptions),
-    express.json(),
-    expressMiddleware(server, {
-      context: async ({ req, res }) => ({
-        db,
-        user: req.user || null,
-        pubsub,
-        req,
-        res,
-      }),
-    })
-  );
+  try {
+    // Only start the server if it hasn't been started yet
+    if (!serverStartPromise) {
+      serverStartPromise = server.start();
+    }
+    await serverStartPromise;
+    
+    app.use(
+      "/graphql",
+      cors(corsOptions),
+      express.json(),
+      expressMiddleware(server, {
+        context: async ({ req, res }) => ({
+          db,
+          user: req.user || null,
+          pubsub,
+          req,
+          res,
+        }),
+      })
+    );
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to configure GraphQL:', error);
+    throw error;
+  }
 };
+
+// Store the server start promise to prevent multiple starts
+let serverStartPromise: Promise<void> | null = null;
 
 startServer();
