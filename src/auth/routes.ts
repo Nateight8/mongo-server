@@ -13,36 +13,56 @@ export function registerAuthRoutes(app: Express) {
     "/api/auth/google/callback",
     (req, res, next) => {
       console.log("[OAuth Callback] Route hit");
+      console.log("[OAuth Callback] Query params:", req.query);
+      console.log("[OAuth Callback] Session ID:", req.sessionID);
       next();
     },
-    passport.authenticate("google", { failureRedirect: "/login" }),
-    (req: Request, res: Response) => {
-      console.log("[OAuth Callback] req.user:", req.user);
-      console.log("[OAuth Callback] req.session:", req.session);
+    (req, res, next) => {
+      passport.authenticate('google', (err: any, user: any, info: any) => {
+        console.log('[OAuth Callback] Authentication result:', { 
+          err, 
+          user: user ? 'User found' : 'No user',
+          info,
+          session: req.session
+        });
 
-      // Determine the base frontend URL
-      // Priority: FRONTEND_URL env var > NODE_ENV based URL > default localhost
-      let baseFrontendUrl = process.env.FRONTEND_URL;
-      
-      if (!baseFrontendUrl) {
-        console.log('[OAuth Callback] NODE_ENV:', process.env.NODE_ENV);
-        baseFrontendUrl = process.env.NODE_ENV === 'production'
-          ? 'https://journal-gamma-two.vercel.app'
-          : 'http://localhost:3000';
-      }
-      
-      console.log('[OAuth Callback] Using frontend URL:', baseFrontendUrl);
+        if (err) {
+          console.error('[OAuth Callback] Error during authentication:', err);
+          return res.redirect(`/login?error=${encodeURIComponent(err.message || 'Authentication failed')}`);
+        }
+        
+        if (!user) {
+          console.error('[OAuth Callback] No user returned from authentication');
+          return res.redirect('/login?error=authentication_failed');
+        }
 
-      // Check if user has completed onboarding
-      const user = req.user as any;
-      const redirectPath = user.onboardingCompleted
-        ? "/dashboard"
-        : "/authenticate";
+        req.logIn(user, (loginErr) => {
+          if (loginErr) {
+            console.error('[OAuth Callback] Error during login:', loginErr);
+            return res.redirect('/login?error=login_failed');
+          }
 
-      console.log(
-        `[OAuth Callback] Redirecting to: ${baseFrontendUrl}${redirectPath}`
-      );
-      res.redirect(`${baseFrontendUrl}${redirectPath}`);
+          // Determine the base frontend URL
+          let baseFrontendUrl = process.env.FRONTEND_URL;
+          
+          if (!baseFrontendUrl) {
+            console.log('[OAuth Callback] NODE_ENV:', process.env.NODE_ENV);
+            baseFrontendUrl = process.env.NODE_ENV === 'production'
+              ? 'https://journal-gamma-two.vercel.app'
+              : 'http://localhost:3000';
+          }
+          
+          console.log('[OAuth Callback] Using frontend URL:', baseFrontendUrl);
+
+          // Check if user has completed onboarding
+          const redirectPath = user.onboardingCompleted
+            ? "/dashboard"
+            : "/authenticate";
+
+          console.log(`[OAuth Callback] Redirecting to: ${baseFrontendUrl}${redirectPath}`);
+          return res.redirect(`${baseFrontendUrl}${redirectPath}`);
+        });
+      })(req, res, next);
     }
   );
 
