@@ -131,15 +131,45 @@ if (isProduction) {
       ssl: isProduction ? { rejectUnauthorized: false } : false
     });
     
+    // Check if the session table exists
+    const checkTableExists = async () => {
+      try {
+        await pool.query('SELECT 1 FROM user_sessions LIMIT 1');
+        console.log('Session table already exists');
+        return true;
+      } catch (err) {
+        console.log('Session table does not exist or error checking:', err);
+        return false;
+      }
+    };
+
     // Create the session store with type assertion
     const PgStore = (pgSession as any)(session);
+    
     // Create the session store instance
     sessionStore = new PgStore({
       pool: pool,
       tableName: 'user_sessions',
-      createTableIfMissing: true,
+      createTableIfMissing: false, // Set to false since we're checking manually
       pruneSessionInterval: 60 * 60, // Prune expired sessions every hour
     });
+
+    // Check if table exists, if not, create it
+    const tableExists = await checkTableExists();
+    if (!tableExists) {
+      console.log('Creating session table...');
+      try {
+        await (sessionStore as any).createTableIfNotExists();
+        console.log('Session table created successfully');
+      } catch (createError) {
+        // If the error is about the table already existing, we can ignore it
+        if (!(createError as any).message?.includes('already exists')) {
+          console.error('Error creating session table:', createError);
+          throw createError;
+        }
+        console.log('Session table already exists (from error check)');
+      }
+    }
     
     console.log('Using PostgreSQL for session storage');
   } catch (error) {
@@ -209,20 +239,19 @@ const getCookieDomain = () => {
 const cookieDomain = getCookieDomain();
 console.log('Final cookie domain:', cookieDomain);
 
+// Session middleware configuration
 const sessionConfig: session.SessionOptions = {
-  secret: process.env.SESSION_SECRET || "supersecret",
+  secret: process.env.AUTH_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: false,
-  name: "tradz.sid", // Custom session cookie name
-  proxy: isProduction, // Trust the reverse proxy in production
-  store: sessionStore, // Use the configured session store
+  store: sessionStore,
   cookie: {
     httpOnly: true,
     secure: isProduction, // true in production (HTTPS)
     sameSite: isProduction ? "none" : "lax", // Required for cross-site cookies
     maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
     domain: cookieDomain,
-  }
+  },
 };
 
 // Trust first proxy in production
@@ -230,7 +259,7 @@ if (isProduction) {
   app.set('trust proxy', 1);
 }
 
-// Session middleware
+// Apply session middleware
 app.use(session(sessionConfig));
 
 // Initialize Passport and restore authentication state from session
@@ -250,6 +279,11 @@ registerAuthRoutes(app);
 
 // Create a PubSub instance
 const pubsub = new PubSub();
+
+// Start the server
+httpServer.listen({ port: 4000 }, () => {
+  console.log(`🚀 Server ready at http://localhost:4000`);
+});
 
 // Create executable schema
 const schema = makeExecutableSchema({
