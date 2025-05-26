@@ -73,7 +73,7 @@ const corsOptions: CorsOptions = {
     return callback(new Error(msg), false);
   },
   credentials: true,
-  optionsSuccessStatus: 200, // Some legacy browsers choke on 204
+  optionsSuccessStatus: 200,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
 };
@@ -85,6 +85,9 @@ if (isProduction) {
   app.set("trust proxy", 1);
 }
 
+// CRITICAL: Apply CORS before session middleware
+app.use(cors(corsOptions));
+
 // Add cookie parser middleware
 app.use(cookieParser());
 
@@ -93,23 +96,21 @@ const httpServer = http.createServer(app);
 // --- Auth setup ---
 setupPassport();
 
-// FIXED Session configuration - removed domain restriction for cross-origin auth
+// FIXED Session configuration with proper cookie settings
 const sessionConfig: session.SessionOptions = {
   secret: process.env.SESSION_SECRET || "supersecret",
   resave: false,
   saveUninitialized: false,
-  name: "tradz.sid", // Custom session cookie name
-  proxy: isProduction, // Trust the reverse proxy in production
+  name: "tradz.sid",
+  proxy: isProduction,
   cookie: {
     httpOnly: true,
-    secure: isProduction, // true in production (HTTPS)
-    sameSite: isProduction ? "none" : "lax", // Required for cross-site cookies
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
     maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
-    // REMOVED domain restriction to allow cross-origin authentication
-    // domain: ... <- This was preventing auth from working
+    // CRITICAL: Ensure partitioned is false for cross-site cookies
+    ...(isProduction && { partitioned: false }),
   },
-  // Recommended to use a session store in production
-  // store: new (require('connect-pg-simple')(session))()
 };
 
 console.log("Session config:", {
@@ -121,25 +122,39 @@ app.use(session(sessionConfig));
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Add session debug middleware
+// Enhanced session debug middleware
 app.use((req, res, next) => {
-  // Only log for auth-related routes to reduce noise
-  if (req.path.includes("/auth") || req.path.includes("/graphql")) {
+  if (
+    req.path.includes("/auth") ||
+    req.path.includes("/graphql") ||
+    req.path.includes("/api")
+  ) {
     console.log("[Session Debug] Path:", req.path);
     console.log("[Session Debug] Session ID:", req.sessionID);
     console.log("[Session Debug] Session exists:", !!req.session);
-    console.log(
-      "[Session Debug] Passport user ID:",
-      req.session?.passport?.user
-    );
+    console.log("[Session Debug] Session data:", {
+      passport: req.session?.passport,
+      cookie: req.session?.cookie
+        ? {
+            maxAge: req.session.cookie.maxAge,
+            secure: req.session.cookie.secure,
+            httpOnly: req.session.cookie.httpOnly,
+            sameSite: req.session.cookie.sameSite,
+          }
+        : "No cookie",
+    });
     console.log(
       "[Session Debug] User object:",
       req.user ? "Present" : "Not present"
     );
     console.log("[Session Debug] Is authenticated:", req.isAuthenticated?.());
     console.log(
-      "[Session Debug] Cookies:",
+      "[Session Debug] Request cookies:",
       req.headers.cookie ? "Present" : "Not present"
+    );
+    console.log(
+      "[Session Debug] Set-Cookie header:",
+      res.getHeaders()["set-cookie"] || "None"
     );
   }
   next();
@@ -167,12 +182,11 @@ const serverCleanup = useServer(
   {
     schema,
     context: async (ctx: { connectionParams?: { session?: any } }) => {
-      // Get session from connection params if available
       const session = ctx.connectionParams?.session || null;
       return { session, db, pubsub };
     },
   },
-  wsServer as any // Type assertion to fix type error
+  wsServer as any
 );
 
 // Create Apollo Server
@@ -198,7 +212,6 @@ let serverStarted = false;
 let serverStarting = false;
 
 async function startServer() {
-  // Prevent multiple server starts
   if (serverStarted) {
     console.log("Server already started, skipping...");
     return httpServer;
@@ -206,7 +219,6 @@ async function startServer() {
 
   if (serverStarting) {
     console.log("Server is already starting, waiting...");
-    // Wait for the other startup to complete
     while (serverStarting) {
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
@@ -221,10 +233,9 @@ async function startServer() {
     await server.start();
     console.log("Apollo Server started");
 
-    // Apply GraphQL middleware with enhanced debugging
+    // Apply GraphQL middleware - CORS already applied globally
     app.use(
       "/graphql",
-      cors(corsOptions),
       express.json(),
       expressMiddleware(server, {
         context: async ({ req, res }) => {
@@ -367,7 +378,7 @@ async function startServer() {
     console.error("Failed to start server:", error);
     serverStarting = false;
     await stopServer();
-    throw error; // Re-throw instead of process.exit to allow proper error handling
+    throw error;
   }
 }
 
@@ -376,13 +387,11 @@ async function stopServer() {
   try {
     console.log("Stopping server...");
 
-    // Close WebSocket server if it exists
     if (serverCleanup) {
       await serverCleanup.dispose();
       console.log("WebSocket server closed");
     }
 
-    // Close HTTP server if it's running
     if (httpServer && httpServer.listening) {
       await new Promise<void>((resolve) => {
         httpServer.close(() => {
@@ -432,5 +441,4 @@ if (isMainModule) {
   });
 }
 
-// Export for testing or programmatic usage (ES module style)
 export { app, startServer, stopServer };
