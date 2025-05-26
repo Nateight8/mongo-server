@@ -11,7 +11,7 @@ import { PubSub } from 'graphql-subscriptions';
 import session from 'express-session';
 import pgSession = require('connect-pg-simple');
 import type { PoolConfig } from 'pg';
-import { Pool } from 'pg';
+import { Pool, Client } from 'pg';
 import { setupPassport } from './auth/passport.js';
 import { registerAuthRoutes } from './auth/routes.js';
 import typeDefs from './graphql/typeDefs/index.js';
@@ -44,18 +44,21 @@ const normalizeUrl = (url: string): string => {
   }
 };
 
-// Define allowed origins
+// Define allowed origins - remove duplicates and normalize
 const allowedOrigins = [
   frontendUrl,
-  "http://localhost:3000",
   "https://studio.apollographql.com",
   "https://journal-gamma-two.vercel.app"
-].filter(Boolean).map(normalizeUrl);
+].filter((value, index, self) => {
+  // Remove duplicates by normalizing URLs
+  const normalized = normalizeUrl(value);
+  return self.findIndex(u => normalizeUrl(u) === normalized) === index;
+});
 
 console.log('Allowed CORS origins:', allowedOrigins);
 
 const corsOptions: CorsOptions = {
-  origin: (origin, callback) => {
+  origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) {
       console.log('No origin in CORS check - allowing');
@@ -123,52 +126,46 @@ setupPassport();
 // Session store configuration
 let sessionStore: session.Store | undefined;
 
+// Initialize session store
 const initializeSessionStore = async () => {
   if (isProduction) {
     try {
-      // In production, use PostgreSQL for session storage
+      // In production, use PostgreSQL session store
+      const PgStore = pgSession(session);
       const pool = new Pool({
         connectionString: process.env.DATABASE_URL,
         ssl: isProduction ? { rejectUnauthorized: false } : false
       });
-      
-      // Create the session store with type assertion
-      const PgStore = (pgSession as any)(session);
-      
-      // Create the session store instance
+
+      // Create the session store
       const store = new PgStore({
         pool: pool,
         tableName: 'user_sessions',
-        createTableIfMissing: true, // Let connect-pg-simple handle table creation
+        createTableIfMissing: true,
         pruneSessionInterval: 60 * 60, // Prune expired sessions every hour
       });
+
+      // Set the global session store
+      sessionStore = store;
+      console.log('Using PostgreSQL for session storage');
       
       // Test the connection and table creation
+      const client = await pool.connect();
       try {
-        // This will trigger the table creation if it doesn't exist
-        await new Promise<void>((resolve, reject) => {
-          store.on('connect', () => {
-            console.log('Successfully connected to PostgreSQL session store');
-            resolve();
-          });
-          store.on('error', (err: any) => {
-            console.error('Session store error:', err);
-            reject(err);
-          });
-        });
-        
-        sessionStore = store;
-        console.log('Using PostgreSQL for session storage');
-      } catch (err) {
-        console.error('Error initializing session store:', err);
-        throw err;
+        await client.query('SELECT 1');
+        console.log('Successfully connected to PostgreSQL session store');
+      } finally {
+        client.release();
       }
     } catch (error) {
       console.error('Failed to initialize PostgreSQL session store:', error);
-      throw error; // Don't fall back to MemoryStore in production
+      // Fall back to MemoryStore with a warning
+      console.warn('Falling back to MemoryStore for sessions');
+      sessionStore = new session.MemoryStore();
     }
   } else {
     // In development, use memory store
+    sessionStore = new session.MemoryStore();
     console.warn('Using MemoryStore for sessions - not suitable for production');
   }
 };
@@ -226,23 +223,30 @@ const getCookieDomain = () => {
   }
 };
 
-// Get the cookie domain
-const cookieDomain = getCookieDomain();
-console.log('Final cookie domain:', cookieDomain);
+// Get the cookie domain - ensure it works in production
+const cookieDomain = process.env.NODE_ENV === 'production' 
+  ? '.onrender.com' // Render's domain
+  : getCookieDomain();
+
+console.log('Final cookie domain:', cookieDomain || 'Not set (using default)');
 
 // Session middleware configuration
 const sessionConfig: session.SessionOptions = {
   secret: process.env.AUTH_SECRET || 'your-secret-key',
   resave: false,
   saveUninitialized: false,
-  store: sessionStore,
+  proxy: isProduction, // Trust the reverse proxy in production
   cookie: {
+    secure: isProduction, // Requires HTTPS in production
     httpOnly: true,
-    secure: isProduction, // true in production (HTTPS)
-    sameSite: isProduction ? "none" : "lax", // Required for cross-site cookies
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
-    domain: cookieDomain,
+    sameSite: isProduction ? 'none' : 'lax', // Required for cross-site cookies
+    domain: cookieDomain || undefined,
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    path: '/',
   },
+  store: sessionStore,
+  name: 'tradz.sid', // Custom session cookie name
+  rolling: true, // Reset the maxAge on every request
 };
 
 // Trust first proxy in production
