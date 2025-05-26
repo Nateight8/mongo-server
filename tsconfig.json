@@ -10,9 +10,13 @@
     "resolveJsonModule": true,
     "baseUrl": ".",
     "outDir": "./dist",
+    "rootDir": "./src",
     "typeRoots": ["./src/types", "./node_modules/@types"],
     "types": ["node"],
-    "moduleDetection": "force"
+    "moduleDetection": "force",
+    "sourceMap": true,
+    "declaration": true,
+    "forceConsistentCasingInFileNames": true
   },
   "ts-node": {
     "esm": true,
