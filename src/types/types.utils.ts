@@ -16,15 +16,7 @@ export interface ContextUser {
   id: string;
   email: string;
   name?: string;
-  displayName?: string;
   image?: string;
-  emailVerified?: Date | null;
-  bio?: string;
-  location?: string;
-  onboardingStep?: string;
-  onboardingCompleted?: boolean;
-  createdAt?: Date;
-  updatedAt?: Date;
 }
 
 import { Request, Response } from "express";

@@ -1,81 +1,70 @@
 import { ApolloServer } from "@apollo/server";
 import { expressMiddleware } from "@apollo/server/express4";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
-import express from "express";
+import express, { NextFunction } from "express";
 import http from "http";
-import cors from "cors";
-import resolvers from "./graphql/resolvers/index.js";
-import typeDefs from "./graphql/typeDefs/index.js";
-import { db } from "./db/index.js";
+import cors, { CorsOptions } from "cors";
+import cookieParser from "cookie-parser";
+import passport from "passport";
+import session from "express-session";
 import { PubSub } from "graphql-subscriptions";
 import { makeExecutableSchema } from "@graphql-tools/schema";
 import { WebSocketServer } from "ws";
 import { useServer } from "graphql-ws/lib/use/ws";
-import type { CorsOptions, CorsRequest } from "cors";
-// --- Modular auth imports ---
-import { setupPassport } from "./auth/passport.js";
-import { registerAuthRoutes } from "./auth/routes.js";
-import passport from "passport";
-import session from "express-session";
-import "dotenv/config";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
-import cookieParser from "cookie-parser";
+import "dotenv/config";
+
+// Application imports
+import resolvers from "./graphql/resolvers/index.js";
+import typeDefs from "./graphql/typeDefs/index.js";
+import { db } from "./db/index.js";
+import { setupPassport } from "./auth/passport.js";
+import { registerAuthRoutes } from "./auth/routes.js";
 
 // ES module equivalent of __filename and __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-interface MyContext {
-  token?: String;
+import type { GraphqlContext } from "./types/types.utils.js";
+import { NeonHttpDatabase } from "drizzle-orm/neon-http";
+
+// Extend the GraphqlContext to use the correct database type
+interface MyContext extends Omit<GraphqlContext, "db"> {
+  token?: string;
+  db: NeonHttpDatabase<typeof import("./db/schema/index.js")> & {
+    $client: any; // We'll type this more specifically if needed
+  };
 }
 
 const isProduction = process.env.NODE_ENV === "production";
 
-// --- CORS Configuration ---
-const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
-const serverUrl =
-  process.env.RENDER_EXTERNAL_URL ||
-  (process.env.RENDER_INSTANCE_ID
-    ? `https://${process.env.RENDER_INSTANCE_ID}.onrender.com`
-    : "http://localhost:4000");
-
 const allowedOrigins = [
-  frontendUrl,
-  serverUrl,
-  "http://localhost:3000",
-  "http://localhost:4000",
-  "https://studio.apollographql.com",
-  "https://journal-gamma-two.vercel.app",
+  ...process.env
+    .CORS_ORIGINS!.split(",")
+    .map((origin) => origin.trim().replace(/\/$/, ""))
+    .filter(Boolean),
+  "https://studio.apollographql.com", // Allow Apollo Sandbox
+  "http://localhost:4000", // Allow local development
+  "http://localhost:3000", // Allow local frontend
 ];
 
-console.log("Allowed CORS origins:", allowedOrigins);
-console.log("Server URL:", serverUrl);
-console.log("Frontend URL:", frontendUrl);
-console.log("Is Production:", isProduction);
-
 const corsOptions: CorsOptions = {
-  origin: (origin, callback) => {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-
-    if (
-      allowedOrigins.includes(origin) ||
-      allowedOrigins.some((allowed) =>
-        origin.endsWith(new URL(allowed).hostname)
-      )
-    ) {
-      return callback(null, true);
+  origin: (
+    origin: string | undefined,
+    callback: (err: Error | null, allow?: boolean) => void
+  ) => {
+    if (!origin || allowedOrigins.includes(origin.replace(/\/$/, ""))) {
+      callback(null, true);
+    } else {
+      console.log("CORS blocked origin:", origin); // Add logging for debugging
+      callback(new Error("Not allowed by CORS"));
     }
-
-    const msg = `The CORS policy for this site does not allow access from the specified Origin: ${origin}`;
-    console.error(msg);
-    return callback(new Error(msg), false);
   },
   credentials: true,
-  optionsSuccessStatus: 200,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  exposedHeaders: ["set-cookie"],
 };
 
 const app = express();
@@ -85,99 +74,44 @@ if (isProduction) {
   app.set("trust proxy", 1);
 }
 
-// CRITICAL: Apply CORS before session middleware
-app.use(cors(corsOptions));
-
-// Add cookie parser middleware
-app.use(cookieParser());
-
 const httpServer = http.createServer(app);
 
-// --- Auth setup ---
-setupPassport();
+// Body parsers - must be before any other middleware that reads the body
+app.use(express.json({ limit: "10mb" }));
+app.use(express.urlencoded({ extended: true, limit: "10mb" }));
 
-// Session configuration with enhanced security and cross-origin support
+// Session configuration
+const cookieOptions: session.CookieOptions = {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
+  domain: isProduction ? ".tradz.app" : "localhost",
+  path: "/",
+};
+
 const sessionConfig: session.SessionOptions = {
   secret: process.env.SESSION_SECRET || "supersecret",
   resave: false,
   saveUninitialized: false,
-  name: "tradz.sid",
-  proxy: isProduction,
-  rolling: true, // Reset maxAge on every request
-  cookie: {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 1 week
-    path: "/",
-    domain: isProduction ? ".tradz.app" : undefined, // Use your domain in production
-  },
-  // Store will be set in the async initialization
-  store: undefined,
+  cookie: cookieOptions,
 };
 
-// Initialize session store if in production
-const initializeSessionStore = async () => {
-  if (isProduction) {
-    try {
-      const { default: MongoStore } = await import('connect-mongo');
-      sessionConfig.store = MongoStore.create({
-        mongoUrl: process.env.DATABASE_URL,
-        ttl: 7 * 24 * 60 * 60, // 1 week in seconds
-      });
-      console.log('Session store initialized successfully');
-    } catch (error) {
-      console.error('Failed to initialize session store:', error);
-      throw error;
-    }
-  }
-  return true;
-};
+// Cookie parser middleware
+// import cookieParser from 'cookie-parser';
 
-console.log("Session config:", {
-  ...sessionConfig,
-  secret: "[REDACTED]",
-});
-
+// --- Auth setup ---
+setupPassport();
+app.use(cookieParser());
 app.use(session(sessionConfig));
 app.use(passport.initialize());
 app.use(passport.session());
 
-// Enhanced session debug middleware
+// Debug middleware to log session info
 app.use((req, res, next) => {
-  if (
-    req.path.includes("/auth") ||
-    req.path.includes("/graphql") ||
-    req.path.includes("/api")
-  ) {
-    console.log("[Session Debug] Path:", req.path);
-    console.log("[Session Debug] Session ID:", req.sessionID);
-    console.log("[Session Debug] Session exists:", !!req.session);
-    console.log("[Session Debug] Session data:", {
-      passport: req.session?.passport,
-      cookie: req.session?.cookie
-        ? {
-            maxAge: req.session.cookie.maxAge,
-            secure: req.session.cookie.secure,
-            httpOnly: req.session.cookie.httpOnly,
-            sameSite: req.session.cookie.sameSite,
-          }
-        : "No cookie",
-    });
-    console.log(
-      "[Session Debug] User object:",
-      req.user ? "Present" : "Not present"
-    );
-    console.log("[Session Debug] Is authenticated:", req.isAuthenticated?.());
-    console.log(
-      "[Session Debug] Request cookies:",
-      req.headers.cookie ? "Present" : "Not present"
-    );
-    console.log(
-      "[Session Debug] Set-Cookie header:",
-      res.getHeaders()["set-cookie"] || "None"
-    );
-  }
+  console.log("Session ID:", req.sessionID);
+  console.log("Session:", req.session);
+  console.log("User:", req.user);
   next();
 });
 
@@ -193,21 +127,23 @@ const schema = makeExecutableSchema({
 });
 
 // Set up WebSocket server for subscriptions
-const wsServer: WebSocketServer = new WebSocketServer({
+const wsServer = new WebSocketServer({
   server: httpServer,
   path: "/graphql",
 });
 
-// Set up WebSocket server
+// Create WebSocket server handler
 const serverCleanup = useServer(
   {
     schema,
-    context: async (ctx: { connectionParams?: { session?: any } }) => {
+    context: async (ctx) => {
+      // Get session from connection params if available
       const session = ctx.connectionParams?.session || null;
       return { session, db, pubsub };
     },
   },
-  wsServer as any
+  // @ts-ignore - Type mismatch between ws and graphql-ws
+  wsServer
 );
 
 // Create Apollo Server
@@ -245,80 +181,34 @@ async function startServer() {
     }
     return httpServer;
   }
-  
-  try {
-    await initializeSessionStore();
-    
-    // Initialize session middleware
-    app.use(session(sessionConfig));
-    app.use(passport.initialize());
-    app.use(passport.session());
-    
-    console.log("Session middleware initialized");
-  } catch (error) {
-    console.error("Failed to initialize session store:", error);
-    throw error;
-  }
 
   try {
-    console.log("Starting server...");
-    console.log("Initializing application...");
-
     await server.start();
-    console.log("Apollo Server started");
 
-    // Apply GraphQL middleware - CORS already applied globally
+    // Apply Apollo Server middleware with proper context
     app.use(
       "/graphql",
+      cors(corsOptions),
       express.json(),
       expressMiddleware(server, {
         context: async ({ req, res }) => {
-          console.log("[GraphQL Context] ===== REQUEST START =====");
-          console.log("[GraphQL Context] Session ID:", req.sessionID);
-          console.log("[GraphQL Context] Session exists:", !!req.session);
-          console.log("[GraphQL Context] Session data:", {
-            passport: req.session?.passport,
-            cookie: req.session?.cookie
-              ? {
-                  maxAge: req.session.cookie.maxAge,
-                  secure: req.session.cookie.secure,
-                  httpOnly: req.session.cookie.httpOnly,
-                  sameSite: req.session.cookie.sameSite,
-                }
-              : "No cookie config",
-          });
-          console.log(
-            "[GraphQL Context] User object:",
-            req.user
-              ? {
-                  id: req.user.id,
-                  name: req.user.name,
-                  email: req.user.email,
-                }
-              : "Not present"
-          );
-          console.log(
-            "[GraphQL Context] Is authenticated:",
-            req.isAuthenticated?.()
-          );
-          console.log("[GraphQL Context] Request headers:", {
-            origin: req.headers.origin,
-            referer: req.headers.referer,
-            userAgent: req.headers["user-agent"]?.substring(0, 50) + "...",
-            cookie: req.headers.cookie ? "Present" : "Not present",
-          });
-          console.log("[GraphQL Context] ===== REQUEST END =====");
-
           return {
-            db,
-            user: req.user || null,
-            pubsub,
             req,
             res,
-            isAuthenticated: req.isAuthenticated?.() || false,
+            user: req.user
+              ? {
+                  id: req.user.id,
+                  email: req.user.email,
+                  name: req.user.name,
+                  image: req.user.image,
+                }
+              : null,
+            // @ts-ignore - We know the types don't match exactly but they're compatible
+            db,
+            pubsub,
           };
         },
-      })
+      } as const)
     );
 
     // Health check endpoint

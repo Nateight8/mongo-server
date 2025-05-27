@@ -3,6 +3,7 @@ import { gql } from "graphql-tag";
 
 export const planTypeDefs = gql`
   scalar DateTime
+  scalar JSON
 
   enum PlanVisibility {
     PUBLIC
