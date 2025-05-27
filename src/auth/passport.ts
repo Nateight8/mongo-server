@@ -6,16 +6,17 @@ import {
 } from "passport-google-oauth20";
 import "dotenv/config";
 import { db } from "../db/index.js";
+import { users } from "../db/schema/auth.js";
 import { eq } from "drizzle-orm";
 import { Snowflake } from "@theinternetfolks/snowflake";
-import { users } from "../db/schema/auth.js";
 
 export function setupPassport() {
   // Debug log to check environment variables
+  const callbackUrl = process.env.GOOGLE_CALLBACK_URL || "http://localhost:4000/api/auth/google/callback";
   console.log("Google OAuth Config:", {
     clientID: process.env.AUTH_GOOGLE_ID ? "Set" : "Not Set",
     clientSecret: process.env.AUTH_GOOGLE_SECRET ? "Set" : "Not Set",
-    callbackURL: process.env.GOOGLE_CALLBACK_URL,
+    callbackURL: callbackUrl,
   });
 
   passport.use(
@@ -23,9 +24,7 @@ export function setupPassport() {
       {
         clientID: process.env.AUTH_GOOGLE_ID || "",
         clientSecret: process.env.AUTH_GOOGLE_SECRET || "",
-        callbackURL:
-          process.env.GOOGLE_CALLBACK_URL ||
-          "http://localhost:4000/api/auth/google/callback",
+        callbackURL: "http://localhost:4000/api/auth/google/callback",
       },
       async (
         accessToken: string,
@@ -46,7 +45,7 @@ export function setupPassport() {
 
           // Check if a user with this email already exists
           const existingUserByEmail = await db.query.users.findFirst({
-            where: (users) => eq(users.email, email),
+            where: (u) => eq(u.email, email),
           });
 
           if (existingUserByEmail) {
@@ -54,33 +53,6 @@ export function setupPassport() {
               "[Google Strategy] Found existing user by email:",
               existingUserByEmail.id
             );
-
-            // Update the user's Google ID if it's different (account linking)
-            if (existingUserByEmail.id !== googleId) {
-              await db
-                .update(users)
-                .set({ id: googleId })
-                .where(eq(users.email, email));
-
-              // Fetch updated user
-              const updatedUser = await db.query.users.findFirst({
-                where: (users) => eq(users.id, googleId),
-              });
-
-              if (updatedUser) {
-                const sanitizedUser = Object.fromEntries(
-                  Object.entries(updatedUser).map(([k, v]) => [
-                    k,
-                    v === null ? undefined : v,
-                  ])
-                );
-                console.log(
-                  "[Google Strategy] Updated user ID, returning:",
-                  sanitizedUser.id
-                );
-                return done(null, sanitizedUser as any);
-              }
-            }
 
             // Map all null fields to undefined for compatibility
             const sanitizedUser = Object.fromEntries(
